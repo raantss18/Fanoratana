@@ -58,20 +58,191 @@ pub fn grouper_lignes(boites: &[Rect]) -> Vec<Ligne> {
         }
     }
     for l in &mut lignes {
-        l.traits
-            .sort_by(|&a, &b| boites[a].min.x.total_cmp(&boites[b].min.x));
-        let seuil = l.bbox.height().min(h_typ * 1.6) * 0.45;
-        let mut mots: Vec<Vec<usize>> = Vec::new();
-        let mut droite = f32::NEG_INFINITY;
-        for &t in &l.traits {
-            if boites[t].min.x - droite > seuil || mots.is_empty() {
-                mots.push(vec![t]);
-            } else {
-                mots.last_mut().unwrap().push(t);
-            }
-            droite = droite.max(boites[t].max.x);
+        ranger_mots(boites, l, h_typ);
+    }
+    lignes.sort_by(|a, b| a.bbox.min.y.total_cmp(&b.bbox.min.y));
+    lignes
+}
+
+fn ranger_mots(boites: &[Rect], l: &mut Ligne, h_typ: f32) {
+    l.traits
+        .sort_by(|&a, &b| boites[a].min.x.total_cmp(&boites[b].min.x));
+    let seuil = l.bbox.height().min(h_typ * 1.6) * 0.45;
+    let mut mots: Vec<Vec<usize>> = Vec::new();
+    let mut droite = f32::NEG_INFINITY;
+    for &t in &l.traits {
+        if boites[t].min.x - droite > seuil || mots.is_empty() {
+            mots.push(vec![t]);
+        } else {
+            mots.last_mut().unwrap().push(t);
         }
-        l.mots = mots;
+        droite = droite.max(boites[t].max.x);
+    }
+    l.mots = mots;
+}
+
+/// Hauteur typique d'un signe : la médiane des hauteurs des traits ni plats ni minuscules (barres, points).
+fn hauteur_typique(boites: &[Rect]) -> f32 {
+    let grand = boites
+        .iter()
+        .filter(|b| b.is_valid())
+        .map(|b| b.height().max(b.width()))
+        .fold(0.0, f32::max);
+    let mut h: Vec<f32> = boites
+        .iter()
+        .filter(|b| b.is_valid() && b.height() > 0.3 * b.width() && b.height().max(b.width()) > 0.1 * grand)
+        .map(|b| b.height().max(2.0))
+        .collect();
+    h.sort_by(f32::total_cmp);
+    h.get(h.len() / 2).copied().unwrap_or(20.0)
+}
+
+/// Les barres de fraction : un trait plat, assez large, avec de l'encre (pas seulement d'autres barres)
+/// juste au-dessus et juste au-dessous, dans sa largeur. Rend, pour chaque trait, ses voisins du dessus
+/// et du dessous s'il est une barre.
+pub fn barres_de_fraction(boites: &[Rect]) -> Vec<Option<(Vec<usize>, Vec<usize>)>> {
+    let h = hauteur_typique(boites);
+    let plat = |b: &Rect| b.width() > 0.0 && b.height() <= 0.3 * b.width();
+    (0..boites.len())
+        .map(|i| {
+            let bar = boites[i];
+            // Une barre est fine (un mot cursif allongé est plat, mais il a la hauteur d'une lettre).
+            if !bar.is_valid() || !plat(&bar) || bar.width() < 0.8 * h || bar.height() > 0.35 * h {
+                return None;
+            }
+            let dans = |b: &Rect| {
+                b.center().x >= bar.min.x - 0.05 * bar.width()
+                    && b.center().x <= bar.max.x + 0.05 * bar.width()
+            };
+            let cy = bar.center().y;
+            let dessus: Vec<usize> = (0..boites.len())
+                .filter(|&j| {
+                    let b = &boites[j];
+                    j != i
+                        && b.is_valid()
+                        && dans(b)
+                        && b.max.y <= cy + 0.15 * h
+                        && bar.min.y - b.max.y < 0.8 * h
+                })
+                .collect();
+            let dessous: Vec<usize> = (0..boites.len())
+                .filter(|&j| {
+                    let b = &boites[j];
+                    j != i
+                        && b.is_valid()
+                        && dans(b)
+                        && b.min.y >= cy - 0.15 * h
+                        && b.min.y - bar.max.y < 0.8 * h
+                })
+                .collect();
+            let encre = |v: &[usize]| {
+                v.iter()
+                    .any(|&j| !plat(&boites[j]) && boites[j].height() >= 0.3 * h)
+            };
+            // Un soulignement n'est pas une barre de fraction : sous lui (ou au-dessus), une ligne de texte
+            // continue au-delà de ses bouts, sur la même ligne de base — un trait lié qui traverse le bout, ou
+            // des mots juste à côté. Un signe qui dépasse seul (le `3` de `3x − 1`) ou un exposant n'en est pas ;
+            // une phrase qui passe à la hauteur de la barre non plus (fraction dans le texte).
+            let continue_ = |v: &[usize]| {
+                if v.is_empty() {
+                    return false;
+                }
+                let bv = v.iter().fold(Rect::NOTHING, |r, &j| r.union(boites[j]));
+                // Un mot pris dans la largeur de la barre qui la déborde nettement : du texte.
+                if v.iter()
+                    .any(|&j| boites[j].min.x < bar.min.x - 0.5 * h || boites[j].max.x > bar.max.x + 0.5 * h)
+                {
+                    return true;
+                }
+                let mut largeur = 0.0;
+                for k in 0..boites.len() {
+                    let b = &boites[k];
+                    if k == i || v.contains(&k) || !b.is_valid() || plat(b) || b.height() < 0.5 * h {
+                        continue;
+                    }
+                    let meme_base = (b.max.y - bv.max.y).abs() < 0.35 * h;
+                    let a_hauteur_de_barre = b.min.y < cy && b.max.y > cy;
+                    let traverse = (b.min.x < bar.min.x && b.max.x > bar.min.x + 0.1 * h)
+                        || (b.max.x > bar.max.x && b.min.x < bar.max.x - 0.1 * h);
+                    let a_cote = b.max.x > bar.min.x - 1.5 * h && b.min.x < bar.max.x + 1.5 * h;
+                    if meme_base && !a_hauteur_de_barre {
+                        if traverse {
+                            return true;
+                        }
+                        if a_cote && !dans(b) {
+                            largeur += b.width();
+                        }
+                    }
+                }
+                largeur >= 1.5 * h
+            };
+            (encre(&dessus) && encre(&dessous) && !continue_(&dessus) && !continue_(&dessous))
+                .then_some((dessus, dessous))
+        })
+        .collect()
+}
+
+/// Les lignes d'une page de cours, en gardant d'un seul tenant ce qui s'écrit sur plusieurs hauteurs :
+/// une fraction (numérateur, barre, dénominateur), `lim` et `x → a` dessous, un exposant posé haut, les
+/// rangées d'une matrice entre ses grandes parenthèses. Le texte ordinaire reste ligne par ligne.
+pub fn grouper_blocs(boites: &[Rect]) -> Vec<Ligne> {
+    let mut lignes = grouper_lignes(boites);
+    let h = hauteur_typique(boites);
+    let ligne_de = |lignes: &[Ligne], t: usize| lignes.iter().position(|l| l.traits.contains(&t));
+    let fusionner = |lignes: &mut Vec<Ligne>, a: usize, b: usize| {
+        let (a, b) = (a.min(b), a.max(b));
+        let l = lignes.remove(b);
+        lignes[a].bbox = lignes[a].bbox.union(l.bbox);
+        lignes[a].traits.extend(l.traits);
+    };
+    // 1. Les fractions relient les lignes de leur barre, de leur numérateur et de leur dénominateur.
+    for (i, f) in barres_de_fraction(boites).into_iter().enumerate() {
+        let Some((dessus, dessous)) = f else { continue };
+        for j in dessus.into_iter().chain(dessous) {
+            if let (Some(a), Some(b)) = (ligne_de(&lignes, i), ligne_de(&lignes, j)) {
+                if a != b {
+                    fusionner(&mut lignes, a, b);
+                }
+            }
+        }
+    }
+    // 2. Une ligne contenue dans la hauteur d'une autre (les rangées d'une matrice entre ses parenthèses),
+    //    ou une toute petite ligne collée à une autre (exposant, borne, `x → 0` sous `lim`).
+    loop {
+        let mut paire = None;
+        'p: for a in 0..lignes.len() {
+            for b in 0..lignes.len() {
+                if a == b {
+                    continue;
+                }
+                let (la, lb) = (&lignes[a].bbox, &lignes[b].bbox);
+                let recouvre_x = la.max.x.min(lb.max.x) - la.min.x.max(lb.min.x) >= 0.0;
+                if !recouvre_x {
+                    continue;
+                }
+                let recouvre_y = (la.max.y.min(lb.max.y) - la.min.y.max(lb.min.y)).max(0.0);
+                let dedans = lb.center().y > la.min.y && lb.center().y < la.max.y;
+                let contenue = dedans && recouvre_y >= 0.6 * lb.height() && la.height() > 1.5 * lb.height();
+                let ecart = (la.min.y.max(lb.min.y) - la.max.y.min(lb.max.y)).max(0.0);
+                // Un exposant ou une borne : un ou deux signes, petits, collés à la ligne (pas un mot court
+                // écrit sous une phrase : il est plus large, ou plus loin).
+                let petite = lignes[b].traits.len() <= 3
+                    && lb.height() < 0.8 * h
+                    && lb.width() < 1.5 * h
+                    && lb.width() < 0.5 * la.width()
+                    && lb.min.x >= la.min.x - 0.5 * h
+                    && lb.max.x <= la.max.x + 0.5 * h;
+                if contenue || (petite && ecart < 0.4 * h) {
+                    paire = Some((a, b));
+                    break 'p;
+                }
+            }
+        }
+        let Some((a, b)) = paire else { break };
+        fusionner(&mut lignes, a, b);
+    }
+    for l in &mut lignes {
+        ranger_mots(boites, l, h);
     }
     lignes.sort_by(|a, b| a.bbox.min.y.total_cmp(&b.bbox.min.y));
     lignes
@@ -132,6 +303,83 @@ pub fn bande_minuscules(traits: &[fano_core::Trait]) -> Option<(f32, f32)> {
     ys.sort_by(f32::total_cmp);
     let q = |p: f32| ys[((ys.len() - 1) as f32 * p) as usize];
     Some((q(0.2), q(0.8)))
+}
+
+#[cfg(test)]
+mod tests_page_de_cours {
+    use super::*;
+    use fano_core::Point;
+
+    fn r(x: f32, y: f32, w: f32, h: f32) -> Rect {
+        Rect::from_min_size(Point::new(x, y), w, h)
+    }
+
+    /// Une ligne de texte cursif : des mots d'un trait, hauteur `h`, à la hauteur `y`.
+    fn phrase(y: f32, x0: f32, mots: &[f32]) -> Vec<Rect> {
+        let mut x = x0;
+        mots.iter()
+            .map(|&w| {
+                let b = r(x, y, w, 20.0);
+                x += w + 12.0;
+                b
+            })
+            .collect()
+    }
+
+    /// Une page de cours comme celles d'Antsa : titre souligné collé à la ligne suivante, paragraphe serré,
+    /// fraction dans une phrase, fraction seule en display. Le texte reste ligne par ligne ; chaque
+    /// fraction reste d'un seul tenant.
+    #[test]
+    fn une_page_de_cours() {
+        let mut b: Vec<Rect> = Vec::new();
+        // Titre « 1- Les fractions » et son soulignement, puis une phrase serrée dessous (écart 0,5 h).
+        b.extend(phrase(0.0, 0.0, &[30.0, 60.0, 110.0]));
+        let soulignement = b.len();
+        b.push(r(0.0, 24.0, 210.0, 3.0));
+        b.extend(phrase(37.0, 0.0, &[40.0, 90.0, 70.0, 120.0]));
+        // Paragraphe serré : deux lignes à 30 pt d'intervalle.
+        b.extend(phrase(67.0, 0.0, &[80.0, 50.0, 140.0]));
+        b.extend(phrase(97.0, 0.0, &[60.0, 100.0]));
+        // Une phrase avec une fraction dedans : « on a 1/2 de la part » (barre au milieu de la ligne).
+        let debut = b.len();
+        b.extend(phrase(140.0, 0.0, &[30.0, 20.0]));
+        b.push(r(70.0, 128.0, 8.0, 14.0)); // 1
+        b.push(r(64.0, 145.0, 22.0, 2.0)); // barre
+        b.push(r(69.0, 150.0, 10.0, 14.0)); // 2
+        b.extend(phrase(140.0, 100.0, &[30.0, 25.0, 60.0]));
+        let fin = b.len();
+        // Fraction seule (display) : numérateur, barre, dénominateur sur trois hauteurs.
+        let display = b.len();
+        b.extend([
+            r(110.0, 200.0, 40.0, 20.0),
+            r(100.0, 226.0, 60.0, 3.0),
+            r(105.0, 235.0, 50.0, 20.0),
+        ]);
+        let lignes = grouper_blocs(&b);
+        let ligne_de = |t: usize| lignes.iter().position(|l| l.traits.contains(&t)).unwrap();
+        // Le titre (et son soulignement) n'est pas collé à la phrase d'en dessous.
+        assert_eq!(ligne_de(0), ligne_de(soulignement));
+        assert_ne!(ligne_de(0), ligne_de(soulignement + 1));
+        // Le paragraphe reste en deux lignes.
+        assert_ne!(ligne_de(soulignement + 5), ligne_de(soulignement + 8));
+        // La phrase et sa fraction : une seule ligne.
+        for t in debut..fin {
+            assert_eq!(ligne_de(t), ligne_de(debut), "trait {t}");
+        }
+        // La fraction display : d'un seul tenant, à part.
+        assert_eq!(ligne_de(display), ligne_de(display + 2));
+        assert_ne!(ligne_de(display), ligne_de(debut));
+        assert_eq!(
+            lignes.len(),
+            6,
+            "{:#?}",
+            lignes.iter().map(|l| l.bbox).collect::<Vec<_>>()
+        );
+        assert!(
+            barres_de_fraction(&b)[soulignement].is_none(),
+            "un soulignement n'est pas une barre de fraction"
+        );
+    }
 }
 
 #[cfg(test)]

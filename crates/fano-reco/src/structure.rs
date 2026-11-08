@@ -228,6 +228,20 @@ fn hauteur_mediane(tr: &[Tr]) -> f32 {
     if hs.is_empty() {
         hs = tr.iter().map(|t| t.w()).collect();
     }
+    // Les grands délimiteurs (parenthèses d'une matrice) ne sont pas des signes ordinaires : sans eux.
+    if tr.len() > 8 && tr.iter().any(|t| t.h() > 2.5 * t.w() && t.h() > 0.8 * grand) {
+        let petits: Vec<f32> = tr
+            .iter()
+            .filter(|t| !t.plat() && t.h().max(t.w()) > 0.08 * grand && t.h() < 0.5 * grand)
+            .map(Tr::h)
+            .collect();
+        // Seulement si l'essentiel de l'encre est petit devant eux (le contenu d'une matrice), pas pour
+        // les parenthèses d'un point `A(3 ; −1)`.
+        let non_plats = tr.iter().filter(|t| !t.plat()).count();
+        if !petits.is_empty() && petits.len() * 2 >= non_plats {
+            hs = petits;
+        }
+    }
     hs.sort_by(f32::total_cmp);
     hs[hs.len() / 2].max(1.0)
 }
@@ -267,6 +281,10 @@ impl Lecture<'_> {
         if ids.is_empty() {
             return Some(Vec::new());
         }
+        if self.matrice(ids) {
+            log::debug!("matrice : pas encore lue");
+            return None;
+        }
         if let Some(r) = self.fraction(ids) {
             return r;
         }
@@ -274,6 +292,35 @@ impl Lecture<'_> {
             return r;
         }
         self.rangee(ids)
+    }
+
+    /// Une matrice (ou un déterminant, un système) : deux grands délimiteurs et, entre eux, au moins deux
+    /// rangées. On ne sait pas encore la lire : mieux vaut le dire que l'inventer.
+    fn matrice(&self, ids: &[usize]) -> bool {
+        let mut grands: Vec<usize> = ids
+            .iter()
+            .copied()
+            .filter(|&i| self.tr[i].h() >= 2.2 * self.hmed && self.tr[i].h() >= 2.5 * self.tr[i].w())
+            .collect();
+        grands.sort_by(|&a, &b| self.tr[a].cx().total_cmp(&self.tr[b].cx()));
+        grands.windows(2).any(|w| {
+            let (g, d) = (&self.tr[w[0]], &self.tr[w[1]]);
+            let mut cys: Vec<f32> = ids
+                .iter()
+                .map(|&i| &self.tr[i])
+                .filter(|t| {
+                    t.cx() > g.x1
+                        && t.cx() < d.x0
+                        && t.cy() > g.y0
+                        && t.cy() < g.y1
+                        && t.h().max(t.w()) > 0.3 * self.hmed
+                })
+                .map(Tr::cy)
+                .collect();
+            cys.sort_by(f32::total_cmp);
+            let rangees = 1 + cys.windows(2).filter(|c| c[1] - c[0] > 0.6 * self.hmed).count();
+            !cys.is_empty() && rangees >= 2
+        })
     }
 
     /// Une barre de fraction : la plus large barre plate qui a de l'encre (pas seulement d'autres barres)

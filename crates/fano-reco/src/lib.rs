@@ -356,6 +356,13 @@ fn lire_demande(
             }),
         };
     }
+    // Un bloc sur plusieurs rangées (fraction, limite, matrice) n'est pas une ligne de texte : lu en formule,
+    // ou laissé à l'encre s'il n'est pas compris (jamais un texte inventé).
+    let boites: Vec<fano_core::Rect> = d.traits.iter().map(fano_core::Trait::bbox).collect();
+    if d.mode == Mode::Auto && fano_ink::grouper_lignes(&boites).len() > 1 {
+        return lire_formule(signes, mfr, dossier, &d.traits, None)
+            .ok_or_else(|| "formule illisible".to_owned());
+    }
     let (gris, largeur) = rasteriser(&d.traits).ok_or("rien à lire")?;
     let mut l = modele.lire_image(&gris, largeur).map_err(|e| e.to_string())?;
     if d.mode == Mode::Auto {

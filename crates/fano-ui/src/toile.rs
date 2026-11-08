@@ -791,13 +791,19 @@ impl Fanoratana {
         for (page, traits) in par_page {
             // 1ʳᵉ passe : les grands tracés isolés qui sont des formes (ronds, triangles, traits longs).
             let boites: Vec<Rect> = traits.iter().map(Trait::bbox).collect();
+            // Une barre de fraction n'est pas un trait de dessin, même longue.
+            let barres_fraction = fano_ink::barres_de_fraction(&boites);
             let mut formes: Vec<Trait> = Vec::new();
-            for ligne in fano_ink::grouper_lignes(&boites) {
+            for ligne in fano_ink::grouper_blocs(&boites) {
                 let tous: Vec<Trait> = ligne.traits.iter().map(|&i| traits[i].clone()).collect();
                 let bbox = tous.iter().fold(Rect::NOTHING, |r, t| r.union(t.bbox()));
                 // Un trait sous des mots est leur soulignement, pas une ligne de dessin.
                 formes.extend(
-                    tous.iter()
+                    ligne
+                        .traits
+                        .iter()
+                        .filter(|&&i| barres_fraction[i].is_none())
+                        .map(|&i| &traits[i])
                         .filter(|t| forme_isolee(t, &tous).is_some() && !est_soulignement(t, &bbox, &tous))
                         .cloned(),
                 );
@@ -819,7 +825,8 @@ impl Fanoratana {
             // 3ᵉ passe : l'écriture, ligne par ligne.
             let boites: Vec<Rect> = traits.iter().map(Trait::bbox).collect();
             let mut morceaux: Vec<Vec<Trait>> = Vec::new();
-            for ligne in fano_ink::grouper_lignes(&boites) {
+            // Par blocs : une fraction, `lim` et sa borne, une matrice restent d'un seul tenant.
+            for ligne in fano_ink::grouper_blocs(&boites) {
                 morceaux.extend(couper_ligne(
                     ligne.traits.iter().map(|&i| traits[i].clone()).collect(),
                 ));
