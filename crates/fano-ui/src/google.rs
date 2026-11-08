@@ -94,7 +94,7 @@ impl Fanoratana {
             }
         }
         widgets::section(ui, t(l, T::LangueEcriture));
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             for (code, nom) in LANGUES {
                 if ui
                     .selectable_label(self.reglages.langue_ecriture == code, nom)
@@ -114,7 +114,7 @@ impl Fanoratana {
             EtatModele::Absent => t(l, T::ModeleAbsent),
             EtatModele::Erreur => t(l, T::ModeleErreur),
         };
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(texte).color(teinte::DOUX));
             if matches!(etat, EtatModele::Absent | EtatModele::Erreur | EtatModele::Pret)
                 && ui.button(t(l, T::ModeleMettreAJour)).clicked()

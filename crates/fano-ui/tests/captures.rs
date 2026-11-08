@@ -262,6 +262,15 @@ fn ecrans() {
             h.get_by_label(bouton).click();
         });
     }
+    // Fenêtre étroite (fenêtre flottante, téléphone) : Réglages et À propos tiennent dans l'écran.
+    for (nom, entree) in [("reglages-etroit", "Réglages"), ("a-propos-etroit", "À propos")] {
+        capture(nom, egui::vec2(420.0, 760.0), |h| {
+            use egui_kittest::kittest::Queryable;
+            h.get_by_label("Menu").click();
+            h.run_steps(3);
+            h.get_by_label(entree).click();
+        });
+    }
     capture("page-2", egui::vec2(800.0, 1280.0), |h| {
         h.run_steps(2);
         let _ = h;

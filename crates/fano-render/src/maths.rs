@@ -68,6 +68,64 @@ enum Noeud {
     Vecteur(Box<Noeud>),
     Barre(Box<Noeud>),
     Espace(f32),
+    /// Un tableau de LaTeX (`cases`, `pmatrix`, `vmatrix`, `bmatrix`, `matrix`, `aligned`) : ses rangées de
+    /// cases, ses délimiteurs gauche et droit, et l'alignement (cases à gauche pour `cases`, centrées sinon).
+    Tableau {
+        rangees: Vec<Vec<Vec<Noeud>>>,
+        gauche: Option<char>,
+        droite: Option<char>,
+        a_gauche: bool,
+    },
+}
+
+/// Le contenu brut d'un environnement jusqu'à son `\end{nom}` (les environnements imbriqués compris).
+fn jusqu_a_la_fin(c: &mut std::iter::Peekable<std::str::Chars<'_>>, nom: &str) -> String {
+    let mut brut = String::new();
+    let mut prof = 0;
+    let fin = format!("\\end{{{nom}}}");
+    let debut = format!("\\begin{{{nom}}}");
+    while let Some(ch) = c.next() {
+        brut.push(ch);
+        if brut.ends_with(&debut) {
+            prof += 1;
+        } else if brut.ends_with(&fin) {
+            if prof == 0 {
+                brut.truncate(brut.len() - fin.len());
+                return brut;
+            }
+            prof -= 1;
+        }
+    }
+    brut
+}
+
+/// Coupe le contenu d'un tableau en rangées (`\\`) et en cases (`&`), hors accolades.
+fn couper_tableau(brut: &str) -> Vec<Vec<Vec<Noeud>>> {
+    let mut rangees: Vec<Vec<String>> = vec![vec![String::new()]];
+    let mut prof = 0;
+    let mut c = brut.chars().peekable();
+    while let Some(ch) = c.next() {
+        match ch {
+            '{' => prof += 1,
+            '}' => prof -= 1,
+            '&' if prof == 0 => {
+                rangees.last_mut().unwrap().push(String::new());
+                continue;
+            }
+            '\\' if prof == 0 && c.peek() == Some(&'\\') => {
+                c.next();
+                rangees.push(vec![String::new()]);
+                continue;
+            }
+            _ => {}
+        }
+        rangees.last_mut().unwrap().last_mut().unwrap().push(ch);
+    }
+    rangees
+        .into_iter()
+        .filter(|r| r.iter().any(|c| !c.trim().is_empty()))
+        .map(|r| r.iter().map(|c| analyser(c)).collect())
+        .collect()
 }
 
 /// Le symbole d'une commande `\nom`, et s'il s'écrit comme un opérateur.
@@ -250,6 +308,23 @@ impl Lecteur<'_> {
                         match (c.next().and_then(ensemble), c.next()) {
                             (Some(s), None) => Noeud::Signe(s.into()),
                             _ => Noeud::Signe(t),
+                        }
+                    }
+                    "begin" => {
+                        let env = self.texte_brut();
+                        let brut = jusqu_a_la_fin(&mut self.c, &env);
+                        let (gauche, droite) = match env.as_str() {
+                            "cases" => (Some('{'), None),
+                            "pmatrix" => (Some('('), Some(')')),
+                            "bmatrix" => (Some('['), Some(']')),
+                            "vmatrix" => (Some('|'), Some('|')),
+                            _ => (None, None),
+                        };
+                        Noeud::Tableau {
+                            rangees: couper_tableau(&brut),
+                            gauche,
+                            droite,
+                            a_gauche: matches!(env.as_str(), "cases" | "aligned" | "array"),
                         }
                     }
                     "left" | "right" | "displaystyle" | "mathit" | "limits" => Noeud::Groupe(vec![]),
@@ -454,6 +529,12 @@ fn boite(n: &Noeud, taille: f32) -> Boite {
             b.ajouter(int, x0, 0.0);
             b
         }
+        Noeud::Tableau {
+            rangees,
+            gauche,
+            droite,
+            a_gauche,
+        } => tableau(rangees, *gauche, *droite, *a_gauche, taille),
         Noeud::Vecteur(inner) | Noeud::Barre(inner) => {
             let mut b = boite(inner, taille);
             let y = -b.haut - taille * 0.12;
@@ -479,6 +560,127 @@ fn boite(n: &Noeud, taille: f32) -> Boite {
     }
 }
 
+/// Un délimiteur dessiné à la hauteur voulue (de `-haut` à `bas`), dans une largeur `l`.
+fn delimiteur(c: char, x: f32, haut: f32, bas: f32, l: f32, ep: f32) -> Vec<Morceau> {
+    let (y0, y1) = (-haut, bas);
+    let ym = (y0 + y1) / 2.0;
+    let trace = |pts: Vec<Point>| Morceau::Trace { pts, epaisseur: ep };
+    // L'ouvrant est dessiné tel quel ; le fermant est son miroir.
+    let (xa, xb, s) = match c {
+        '(' | '[' | '{' | '|' => (x + l * 0.8, x + l * 0.2, 1.0),
+        _ => (x + l * 0.2, x + l * 0.8, -1.0),
+    };
+    let _ = s;
+    match c {
+        '(' | ')' => {
+            let pts = (0..=16)
+                .map(|i| {
+                    let t = i as f32 / 16.0;
+                    let a = (t - 0.5) * std::f32::consts::PI;
+                    Point::new(xa + (xb - xa) * a.cos(), ym + (y1 - y0) / 2.0 * a.sin())
+                })
+                .collect();
+            vec![trace(pts)]
+        }
+        '[' | ']' => vec![trace(vec![
+            Point::new(xa, y0),
+            Point::new(xb, y0),
+            Point::new(xb, y1),
+            Point::new(xa, y1),
+        ])],
+        '{' | '}' => {
+            let q = (y1 - y0) / 4.0;
+            let xm = (xa + xb) / 2.0;
+            vec![trace(vec![
+                Point::new(xa, y0),
+                Point::new(xm, y0 + q * 0.3),
+                Point::new(xm, ym - q * 0.3),
+                Point::new(xb, ym),
+                Point::new(xm, ym + q * 0.3),
+                Point::new(xm, y1 - q * 0.3),
+                Point::new(xa, y1),
+            ])]
+        }
+        _ => vec![trace(vec![
+            Point::new(x + l * 0.5, y0),
+            Point::new(x + l * 0.5, y1),
+        ])],
+    }
+}
+
+/// Un tableau (système, matrice) : cases alignées en colonnes, centrées sur l'axe des formules.
+fn tableau(
+    rangees: &[Vec<Vec<Noeud>>],
+    gauche: Option<char>,
+    droite: Option<char>,
+    a_gauche: bool,
+    taille: f32,
+) -> Boite {
+    let boites: Vec<Vec<Boite>> = rangees
+        .iter()
+        .map(|r| r.iter().map(|c| horizontal(c, taille)).collect())
+        .collect();
+    let n_col = boites.iter().map(Vec::len).max().unwrap_or(0);
+    let colonnes: Vec<f32> = (0..n_col)
+        .map(|j| {
+            boites
+                .iter()
+                .filter_map(|r| r.get(j))
+                .map(|b| b.largeur)
+                .fold(0.0, f32::max)
+        })
+        .collect();
+    let ecart_col = taille * if a_gauche { 0.6 } else { 0.8 };
+    let interligne = taille * 0.25;
+    let hauteurs: Vec<(f32, f32)> = boites
+        .iter()
+        .map(|r| {
+            (
+                r.iter().map(|b| b.haut).fold(taille * 0.7, f32::max),
+                r.iter().map(|b| b.bas).fold(taille * 0.2, f32::max),
+            )
+        })
+        .collect();
+    let total: f32 = hauteurs.iter().map(|(h, b)| h + b).sum::<f32>()
+        + interligne * hauteurs.len().saturating_sub(1) as f32;
+    let axe = taille * 0.3;
+    let haut = total / 2.0 + axe;
+    let bas = total / 2.0 - axe;
+    let ld = taille * 0.4;
+    let x_contenu = if gauche.is_some() { ld + taille * 0.1 } else { 0.0 };
+    let largeur_contenu: f32 = colonnes.iter().sum::<f32>() + ecart_col * n_col.saturating_sub(1) as f32;
+    let mut b = Boite {
+        largeur: x_contenu + largeur_contenu + if droite.is_some() { taille * 0.1 + ld } else { 0.0 },
+        haut,
+        bas,
+        morceaux: vec![],
+    };
+    let mut y = -haut;
+    for (r, (h, bs)) in boites.into_iter().zip(&hauteurs) {
+        y += h;
+        let mut x = x_contenu;
+        for (j, c) in r.into_iter().enumerate() {
+            let dx = if a_gauche {
+                0.0
+            } else {
+                (colonnes[j] - c.largeur) / 2.0
+            };
+            b.ajouter(c, x + dx, y);
+            x += colonnes[j] + ecart_col;
+        }
+        y += bs + interligne;
+    }
+    let ep = taille * EP;
+    if let Some(c) = gauche {
+        b.morceaux.extend(delimiteur(c, 0.0, haut, bas, ld, ep));
+    }
+    if let Some(c) = droite {
+        b.morceaux
+            .extend(delimiteur(c, b.largeur - ld, haut, bas, ld, ep));
+    }
+    b
+}
+
 /// Met en page une formule (le contenu entre `$…$`).
 pub fn mettre_en_page(src: &str, taille: f32) -> Boite {
     horizontal(&analyser(src), taille)
@@ -487,6 +689,27 @@ pub fn mettre_en_page(src: &str, taille: f32) -> Boite {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn systeme_et_matrice() {
+        let b = mettre_en_page(
+            r"f(x)=\begin{cases} -x & \text{si } x<0 \\ x & \text{si } x\geq 0 \end{cases}",
+            20.0,
+        );
+        let t = textes(&b).concat();
+        assert!(
+            t.contains("si") && t.contains('≥') && !t.contains("begin") && !t.contains('&'),
+            "{t}"
+        );
+        // Deux rangées l'une sous l'autre : la boîte est plus haute qu'une ligne.
+        assert!(b.haut + b.bas > 40.0);
+        let m = mettre_en_page(r"\begin{pmatrix}1&8\\-1&7\end{pmatrix}^{-1}", 20.0);
+        let t = textes(&m).concat();
+        assert!(
+            t.contains('1') && t.contains('8') && t.contains('7') && !t.contains("pmatrix"),
+            "{t}"
+        );
+    }
 
     fn textes(b: &Boite) -> Vec<String> {
         b.morceaux

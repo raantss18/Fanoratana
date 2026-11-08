@@ -162,6 +162,7 @@ pub struct Fanoratana {
     pub(crate) vue_page: (f32, f32),
     pub(crate) outils_ouverts: bool,
     pub(crate) reglages_ouverts: bool,
+    pub(crate) a_propos_ouvert: bool,
     pub(crate) decalage_haut: f32,
     /// Demander l'accord pour la lecture Google (une fois).
     pub(crate) demande_google: bool,
@@ -253,6 +254,7 @@ impl Fanoratana {
             vue_page: (0.0, 0.0),
             outils_ouverts: false,
             reglages_ouverts: false,
+            a_propos_ouvert: false,
             decalage_haut: 0.0,
             demande_google: false,
             montrer: None,

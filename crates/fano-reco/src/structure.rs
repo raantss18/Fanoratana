@@ -116,11 +116,22 @@ enum N {
     Scripts(Box<N>, Option<Vec<N>>, Option<Vec<N>>),
     /// Un opérateur à bornes au-dessus / au-dessous (`\lim_{x\to0}`, `\sum_{k=1}^{n}`).
     Bornes(Box<N>, Option<Vec<N>>, Option<Vec<N>>),
+    /// Un système (`cases`) ou une matrice (`pmatrix`, `vmatrix`) : rangées de cases.
+    Tableau(&'static str, Vec<Vec<Vec<N>>>),
 }
 
-const FONCTIONS: [&str; 10] = [
-    "lim", "sin", "cos", "tan", "ln", "log", "exp", "det", "max", "min",
+/// Les mots lus d'un bloc : fonctions, et `si`/`sinon` des systèmes (le plus long d'abord).
+const FONCTIONS: [&str; 12] = [
+    "sinon", "lim", "sin", "cos", "tan", "ln", "log", "exp", "det", "max", "min", "si",
 ];
+
+/// Le LaTeX d'un mot : une fonction (`\sin`) ou un mot du texte (`si`, `sinon`).
+fn latex_du_mot(f: &str) -> String {
+    match f {
+        "si" | "sinon" => format!("\\text{{{f} }}"),
+        _ => format!("\\{f}"),
+    }
+}
 
 struct Lecture<'a> {
     cl: &'a ClasseurSignes,
@@ -281,9 +292,9 @@ impl Lecture<'_> {
         if ids.is_empty() {
             return Some(Vec::new());
         }
-        if self.matrice(ids) {
-            log::debug!("matrice : pas encore lue");
-            return None;
+        if let Some((noeud, boite, pris)) = self.tableau(ids)? {
+            let reste: Vec<usize> = ids.iter().copied().filter(|i| !pris.contains(i)).collect();
+            return self.rangee_avec(&reste, vec![(noeud, boite)]);
         }
         if let Some(r) = self.fraction(ids) {
             return r;
@@ -294,33 +305,162 @@ impl Lecture<'_> {
         self.rangee(ids)
     }
 
-    /// Une matrice (ou un déterminant, un système) : deux grands délimiteurs et, entre eux, au moins deux
-    /// rangées. On ne sait pas encore la lire : mieux vaut le dire que l'inventer.
-    fn matrice(&self, ids: &[usize]) -> bool {
-        let mut grands: Vec<usize> = ids
+    /// Les grands délimiteurs : hauts et étroits (parenthèses, crochets, barres, accolade), d'un trait ou de
+    /// plusieurs traits verticaux bout à bout (une accolade en deux moitiés). De gauche à droite.
+    fn delimiteurs(&self, ids: &[usize]) -> Vec<Vec<usize>> {
+        let mut verticaux: Vec<usize> = ids
             .iter()
             .copied()
-            .filter(|&i| self.tr[i].h() >= 2.2 * self.hmed && self.tr[i].h() >= 2.5 * self.tr[i].w())
+            .filter(|&i| self.tr[i].h() >= 0.8 * self.hmed && self.tr[i].h() >= 2.0 * self.tr[i].w())
             .collect();
-        grands.sort_by(|&a, &b| self.tr[a].cx().total_cmp(&self.tr[b].cx()));
-        grands.windows(2).any(|w| {
-            let (g, d) = (&self.tr[w[0]], &self.tr[w[1]]);
-            let mut cys: Vec<f32> = ids
+        verticaux.sort_by(|&a, &b| self.tr[a].y0.total_cmp(&self.tr[b].y0));
+        let mut groupes: Vec<Vec<usize>> = Vec::new();
+        for i in verticaux {
+            let t = &self.tr[i];
+            let suite = groupes.iter_mut().find(|g| {
+                let b = boite_de(&self.tr, g);
+                let recouvre = t.x1.min(b.x1) - t.x0.max(b.x0) > -0.2 * self.hmed;
+                recouvre && t.y0 - b.y1 < 0.3 * self.hmed && t.y0 > b.y0 + 0.5 * b.h()
+            });
+            match suite {
+                Some(g) => g.push(i),
+                None => groupes.push(vec![i]),
+            }
+        }
+        groupes.retain(|g| {
+            let b = boite_de(&self.tr, g);
+            b.h() >= 2.2 * self.hmed && b.h() >= 2.5 * b.w()
+        });
+        groupes.sort_by(|a, b| boite_de(&self.tr, a).cx().total_cmp(&boite_de(&self.tr, b).cx()));
+        groupes
+    }
+
+    /// Les rangées d'un contenu : traits groupés de haut en bas par recouvrement en hauteur.
+    fn rangees(&self, contenu: &[usize]) -> Vec<Vec<usize>> {
+        let mut ordre = contenu.to_vec();
+        ordre.sort_by(|&a, &b| self.tr[a].y0.total_cmp(&self.tr[b].y0));
+        let mut rangees: Vec<Vec<usize>> = Vec::new();
+        let mut bas = f32::MIN;
+        for i in ordre {
+            let t = &self.tr[i];
+            // Un point ou une barre suit la rangée en cours (le `−` d'une case, le point d'un `i`).
+            let leger = t.plat() || self.petit(t);
+            if rangees.is_empty()
+                || (t.y0 > bas - 0.1 * self.hmed && !(leger && t.cy() < bas + 0.3 * self.hmed))
+            {
+                rangees.push(Vec::new());
+                bas = f32::MIN;
+            }
+            bas = bas.max(t.y1);
+            rangees.last_mut().unwrap().push(i);
+        }
+        rangees.retain(|r| r.iter().any(|&i| !self.petit(&self.tr[i])));
+        rangees
+    }
+
+    /// Un tableau : une matrice (deux grands délimiteurs, au moins deux rangées entre eux) ou un système
+    /// (une grande accolade ou barre à gauche, au moins deux rangées à sa droite). Rend le nœud, sa boîte et
+    /// les traits pris. `Some(None)` : pas de tableau ; `None` : un tableau qu'on ne sait pas lire.
+    fn tableau(&mut self, ids: &[usize]) -> Option<Option<(N, Boite, Vec<usize>)>> {
+        let delims = self.delimiteurs(ids);
+        let Some(g) = delims.first().cloned() else {
+            return Some(None);
+        };
+        let tg = boite_de(&self.tr, &g);
+        // Le délimiteur fermant a la taille de l'ouvrant (un `t` haut n'en est pas un).
+        let d = delims[1..]
+            .iter()
+            .find(|k| {
+                let t = boite_de(&self.tr, k);
+                t.h() >= 0.7 * tg.h() && t.y1.min(tg.y1) - t.y0.max(tg.y0) > 0.6 * tg.h()
+            })
+            .cloned();
+        let x_fin = d.as_ref().map_or(f32::MAX, |d| boite_de(&self.tr, d).x0);
+        let contenu: Vec<usize> = ids
+            .iter()
+            .copied()
+            .filter(|&i| {
+                let t = &self.tr[i];
+                !g.contains(&i)
+                    && !d.as_ref().is_some_and(|d| d.contains(&i))
+                    && t.cx() > tg.x0 + 0.75 * tg.w()
+                    && t.cx() < x_fin
+                    && t.cy() > tg.y0
+                    && t.cy() < tg.y1
+            })
+            .collect();
+        let rangees = self.rangees(&contenu);
+        if rangees.len() < 2 {
+            return Some(None);
+        }
+        let mut pris: Vec<usize> = contenu.clone();
+        pris.extend(&g);
+        let n = if let Some(d) = d {
+            // Matrice : colonnes par les bandes verticales des signes de toutes les rangées.
+            pris.extend(&d);
+            let mut bandes: Vec<(f32, f32)> = Vec::new();
+            let mut groupes: Vec<Vec<usize>> = Vec::new();
+            for r in &rangees {
+                groupes.extend(self.grouper(r));
+            }
+            let mut inter: Vec<(f32, f32)> = groupes
                 .iter()
-                .map(|&i| &self.tr[i])
-                .filter(|t| {
-                    t.cx() > g.x1
-                        && t.cx() < d.x0
-                        && t.cy() > g.y0
-                        && t.cy() < g.y1
-                        && t.h().max(t.w()) > 0.3 * self.hmed
+                .map(|g| {
+                    let b = self.boite(g);
+                    (b.x0, b.x1)
                 })
-                .map(Tr::cy)
                 .collect();
-            cys.sort_by(f32::total_cmp);
-            let rangees = 1 + cys.windows(2).filter(|c| c[1] - c[0] > 0.6 * self.hmed).count();
-            !cys.is_empty() && rangees >= 2
-        })
+            inter.sort_by(|a, b| a.0.total_cmp(&b.0));
+            for (a, b) in inter {
+                match bandes.last_mut() {
+                    Some(l) if a < l.1 + 0.35 * self.hmed => l.1 = l.1.max(b),
+                    _ => bandes.push((a, b)),
+                }
+            }
+            let mut lignes = Vec::new();
+            for r in &rangees {
+                let mut cases = Vec::new();
+                for &(a, b) in &bandes {
+                    let cellule: Vec<usize> = r
+                        .iter()
+                        .copied()
+                        .filter(|&i| {
+                            let c = self.tr[i].cx();
+                            c >= a - 0.3 * self.hmed && c <= b + 0.3 * self.hmed
+                        })
+                        .collect();
+                    cases.push(self.zone(&cellule)?);
+                }
+                lignes.push(cases);
+            }
+            let droit = |v: &[usize]| {
+                v.len() == 1
+                    && bombe(&self.tr[v[0]]).is_none()
+                    && self.tr[v[0]].w() < 0.25 * self.tr[v[0]].h()
+            };
+            let env = if droit(&g) && droit(&d) {
+                "vmatrix"
+            } else {
+                "pmatrix"
+            };
+            N::Tableau(env, lignes)
+        } else {
+            // Système : chaque rangée en deux cases, la valeur et la condition (« si … »).
+            let mut lignes = Vec::new();
+            for r in &rangees {
+                let v = self.zone(r)?;
+                let k = v
+                    .iter()
+                    .position(|n| matches!(n, N::Mot(m) if m.starts_with("\\text")));
+                lignes.push(match k {
+                    Some(k) if k > 0 => vec![v[..k].to_vec(), v[k..].to_vec()],
+                    _ => vec![v],
+                });
+            }
+            N::Tableau("cases", lignes)
+        };
+        let boite = self.boite(&pris);
+        Some(Some((n, boite, pris)))
     }
 
     /// Une barre de fraction : la plus large barre plate qui a de l'encre (pas seulement d'autres barres)
@@ -574,7 +714,12 @@ impl Lecture<'_> {
 
     /// Une rangée : les signes, les mots (`lim`, `sin`), les bornes des opérateurs, puis la ligne de base.
     fn rangee(&mut self, ids: &[usize]) -> Option<Vec<N>> {
-        let mut elems: Vec<(N, Boite)> = Vec::new();
+        self.rangee_avec(ids, Vec::new())
+    }
+
+    /// Une rangée avec des éléments déjà lus (un tableau) : ils prennent leur place parmi les signes.
+    fn rangee_avec(&mut self, ids: &[usize], deja: Vec<(N, Boite)>) -> Option<Vec<N>> {
+        let mut elems: Vec<(N, Boite)> = deja;
         for g in self.grouper(ids) {
             let s = self.signe(&g)?;
             // Un groupe mal lu peut être deux signes qui se recouvrent (une parenthèse écrite sur le `x`) :
@@ -880,7 +1025,7 @@ impl Lecture<'_> {
                             y1: b.y1.max(e.y1),
                         }
                     });
-                    let mot = N::Mot(format!("\\{f}"));
+                    let mot = N::Mot(latex_du_mot(f));
                     pris.sort_unstable();
                     for k in pris.iter().rev() {
                         elems.remove(*k);
@@ -1037,7 +1182,7 @@ impl Lecture<'_> {
                             | "abs"
                     )
             }
-            N::Frac(..) | N::Racine(..) | N::Mot(..) => true,
+            N::Frac(..) | N::Racine(..) | N::Mot(..) | N::Tableau(..) => true,
             _ => false,
         }
     }
@@ -1171,7 +1316,7 @@ impl Lecture<'_> {
                         lettre(&v[i + k]).is_some_and(|s| self.signes[s].id.starts_with(*c) && self.signes[s].id.len() == 1)
                     }).count() * 2 >= n
                 {
-                    res.push(N::Mot(format!("\\{f}")));
+                    res.push(N::Mot(latex_du_mot(f)));
                     i += n;
                     continue 'boucle;
                 }
@@ -1258,6 +1403,11 @@ impl Lecture<'_> {
                     self.contexte(b);
                 }
                 N::Racine(a) => self.contexte(a),
+                N::Tableau(_, r) => {
+                    for c in r.iter().flatten() {
+                        self.contexte(c);
+                    }
+                }
                 N::Scripts(_, a, b) | N::Bornes(_, a, b) => {
                     if let Some(a) = a {
                         self.contexte(a);
@@ -1296,6 +1446,19 @@ impl Lecture<'_> {
             N::Mot(m) => m.clone(),
             N::Frac(a, b) => format!("\\frac{{{}}}{{{}}}", self.ecrire(a), self.ecrire(b)),
             N::Racine(a) => format!("\\sqrt{{{}}}", self.ecrire(a)),
+            N::Tableau(env, r) => {
+                let corps: Vec<String> = r
+                    .iter()
+                    .map(|cases| {
+                        cases
+                            .iter()
+                            .map(|c| self.ecrire(c))
+                            .collect::<Vec<_>>()
+                            .join(" & ")
+                    })
+                    .collect();
+                format!("\\begin{{{env}}}{}\\end{{{env}}}", corps.join(" \\\\ "))
+            }
             N::Scripts(b, sub, sup) => {
                 let mut t = self.ecrire_noeud(b);
                 if let Some(sub) = sub {
@@ -1454,12 +1617,45 @@ mod tests {
         let _ = log::set_logger(&L).map(|()| log::set_max_level(log::LevelFilter::Debug));
     }
 
+    /// Les systèmes d'Antsa (une accolade, deux rangées) se lisent en `cases`.
     #[test]
-    fn une_matrice_n_est_pas_inventee() {
-        // Une matrice (étages alignés de la même taille) n'est pas lue au hasard : None, le recours la lira.
-        for nom in ["pad7/M_matrice_2x3", "pad7/det_3x3_72", "telephone/matrice_carre"] {
-            let l = lire(nom);
-            assert!(l.is_none(), "{nom} : {l:?}");
+    fn systemes_d_antsa() {
+        for nom in ["pad7/param_t_sin_t", "pad7/param_cos_t_sin_t"] {
+            let l = lire(nom).unwrap_or_else(|| panic!("{nom} non lu"));
+            eprintln!("{nom} : {} ({:.2})", l.latex, l.confiance);
+            assert!(
+                l.latex.starts_with("\\begin{cases}") && l.latex.matches("\\\\").count() == 1,
+                "{nom} : {}",
+                l.latex
+            );
+        }
+    }
+
+    /// Les matrices d'Antsa se lisent en `pmatrix` : la forme (rangées, colonnes) est juste ; les signes
+    /// suivent la justesse du modèle.
+    #[test]
+    fn matrices_d_antsa() {
+        for (nom, rangees, colonnes) in [
+            ("pad7/M_matrice_2x3", 2, 3),
+            ("pad7/det_3x3_72", 3, 3),
+            ("telephone/matrice_carre", 2, 2),
+            ("pad7/matrice_inverse", 2, 2),
+            ("pad7/det_2x2_40", 2, 2),
+        ] {
+            let Some(l) = lire(nom) else {
+                eprintln!("{nom} : non lu");
+                continue;
+            };
+            eprintln!("{nom} : {} ({:.2})", l.latex, l.confiance);
+            let corps = l
+                .latex
+                .split("\\begin{pmatrix}")
+                .nth(1)
+                .and_then(|c| c.split("\\end{pmatrix}").next());
+            let corps = corps.unwrap_or_else(|| panic!("{nom} : {}", l.latex));
+            let r: Vec<&str> = corps.split("\\\\").collect();
+            let ok = r.len() == rangees && r.iter().all(|x| x.split('&').count() == colonnes);
+            assert!(ok, "{nom} : forme fausse");
         }
     }
 }

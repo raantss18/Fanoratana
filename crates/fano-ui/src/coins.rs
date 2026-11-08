@@ -264,6 +264,9 @@ impl Fanoratana {
         if self.reglages_ouverts {
             self.ecran_reglages(ctx);
         }
+        if self.a_propos_ouvert {
+            self.ecran_a_propos(ctx);
+        }
         self.demande_lecture_google(ctx);
     }
 
@@ -411,6 +414,65 @@ impl Fanoratana {
             self.reglages_ouverts = true;
             ui.close();
         }
+        if widgets::ligne(ui, None, t(l, T::APropos), false).clicked() {
+            self.a_propos_ouvert = true;
+            ui.close();
+        }
+    }
+
+    /// À propos : l'app, sa version, sa licence, et comment joindre son autrice.
+    fn ecran_a_propos(&mut self, ctx: &egui::Context) {
+        let l = self.langue;
+        let mut fermer = false;
+        let largeur = 440.0_f32.min(ctx.content_rect().width() - 48.0);
+        let rep = egui::Modal::new("a-propos".into()).show(ctx, |ui| {
+            ui.set_width(largeur);
+            ui.set_max_width(largeur);
+            ui.horizontal(|ui| {
+                ui.heading(format!("Fanoratana {}", env!("CARGO_PKG_VERSION")));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(t(l, T::Fermer)).clicked() {
+                        fermer = true;
+                    }
+                });
+            });
+            ui.add_space(6.0);
+            ui.label(t(l, T::AProposTexte));
+            ui.separator();
+            widgets::section(ui, t(l, T::Autrice));
+            ui.label(RichText::new(AUTRICE).strong());
+            let lien = |ui: &mut egui::Ui, nom: &str, texte: &str, url: &str| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new(format!("{nom} :")).color(teinte::DOUX));
+                    ui.hyperlink_to(texte, url);
+                });
+            };
+            lien(ui, t(l, T::Courriel), COURRIEL, &format!("mailto:{COURRIEL}"));
+            lien(
+                ui,
+                t(l, T::Telephone),
+                TELEPHONE,
+                &format!("tel:{}", TELEPHONE.replace(' ', "")),
+            );
+            lien(ui, "WhatsApp", TELEPHONE, WHATSAPP);
+            lien(
+                ui,
+                "GitHub",
+                "github.com/raantss18",
+                "https://github.com/raantss18",
+            );
+            ui.separator();
+            lien(
+                ui,
+                t(l, T::CodeSource),
+                "github.com/raantss18/Fanoratana",
+                "https://github.com/raantss18/Fanoratana",
+            );
+            ui.label(RichText::new(t(l, T::LicenceTexte)).small().color(teinte::DOUX));
+        });
+        if fermer || rep.should_close() {
+            self.a_propos_ouvert = false;
+        }
     }
 
     /// Les Réglages : un écran à part, en sections (comme Fikajiana).
@@ -418,7 +480,10 @@ impl Fanoratana {
         let l = self.langue;
         let mut fermer = false;
         let rep = egui::Modal::new("reglages".into()).show(ctx, |ui| {
-            ui.set_width(480.0_f32.min(ctx.content_rect().width() - 48.0));
+            // Jamais plus large que l'écran (fenêtre flottante, portrait) : le texte va à la ligne.
+            let largeur = 480.0_f32.min(ctx.content_rect().width() - 48.0);
+            ui.set_width(largeur);
+            ui.set_max_width(largeur);
             ui.horizontal(|ui| {
                 ui.heading(t(l, T::Reglages));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -434,11 +499,9 @@ impl Fanoratana {
                     widgets::section(ui, t(l, T::Ecriture));
                     widgets::interrupteur(ui, &mut self.reglages.doigt_ecrit, t(l, T::DoigtEcrit));
                     widgets::interrupteur(ui, &mut self.reglages.au_propre_auto, t(l, T::AuPropreAuto));
-                    ui.add(
-                        egui::Slider::new(&mut self.reglages.delai_ms, 400..=4000)
-                            .suffix(" ms")
-                            .text(t(l, T::Delai)),
-                    );
+                    ui.label(t(l, T::Delai));
+                    ui.spacing_mut().slider_width = (ui.available_width() - 120.0).max(80.0);
+                    ui.add(egui::Slider::new(&mut self.reglages.delai_ms, 400..=4000).suffix(" ms"));
                     ui.separator();
                     widgets::section(ui, t(l, T::LectureEcriture));
                     self.reglage_lecture_google(ui);
@@ -491,3 +554,9 @@ impl Fanoratana {
         }
     }
 }
+
+/// L'autrice de Fanoratana et comment la joindre (mêmes coordonnées que ses autres apps).
+const AUTRICE: &str = "Antsa Malala RANIRIAMANJAKA";
+const COURRIEL: &str = "antsa.raniriamanjaka@univ-antananarivo.mg";
+const TELEPHONE: &str = "+261 33 43 838 82";
+const WHATSAPP: &str = "https://wa.me/261334383882";

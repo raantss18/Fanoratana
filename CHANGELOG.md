@@ -2,6 +2,10 @@
 
 ## [Non publié]
 
+- Systèmes (accolade) et matrices lus et mis au propre ; page de cours lue par blocs (fractions, limites, matrices d'un seul tenant).
+- Écran « À propos » : version, licence et coordonnées de l'autrice.
+- La lecture Google (ML Kit) se télécharge enfin sur Android ; Réglages lisibles en fenêtre étroite.
+
 - Formules lues à leur structure, signe par signe (modèle de Fikajiana) : fractions, racines, exposants, indices, `lim` et sa flèche, `Σ`, `∫` ; une formule douteuse reste à valider au lieu d'être inventée.
 
 ## [0.0.1] — 2026-11-08

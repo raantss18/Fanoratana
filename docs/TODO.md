@@ -50,7 +50,9 @@
   règles dans `android/app/proguard-rules.pro`, vérifié sur 8df629a (« Modèle prêt, hors ligne »).
 - ✅ « Mise à jour impossible : 404 » quand aucune version n'est publiée : ce n'est plus une erreur.
 - ✅ Un √ tracé au-dessus de x devenait une forme : un trait ouvert qui coiffe de l'écriture reste un signe.
-- ⬜ Réglages en portrait étroit : la fenêtre déborde de l'écran ; le titre de la leçon passe sous « Insérer ».
+- ✅ Réglages en fenêtre étroite : la fenêtre ne déborde plus (capture `reglages-etroit`).
+- ⬜ En portrait étroit, le titre de la leçon passe sous « Insérer ».
+- ✅ Écran « À propos » (version, licence, coordonnées d'Antsa).
 
 ## 1. Version 0.0.1 (2026-11-08)
 
@@ -110,7 +112,8 @@ Ordre de priorité (chaque étape est utilisable seule) :
   aucune fausse sûre (`cargo test -p fano-reco banc -- --nocapture`).
 - ⬜ Formules : essai sur le Pad 7 (latence, justesse) ; apprendre des corrections (plus proche voisin, comme Fikajiana ADR 0041) ;
   réentraîner le modèle de signes avec l'écriture d'Antsa (`y`, `(`, `;`, `g`, `e` du téléphone ratés).
-- ⬜ Formules : matrices et systèmes (`pmatrix`, `cases`), vecteur `\vec{AB}`, normes, `\sum` avec bornes réelles à tester.
+- ✅ Matrices et systèmes lus (`pmatrix`, `vmatrix`, `cases`, `si`) et rendus ; forme juste sur les 7 fixtures d'Antsa.
+- ⬜ Formules : vecteur `\vec{AB}`, normes, `\sum` avec bornes réelles à tester.
 - ⬜ Rendu Typst + MiTeX, environnements amsthm, export LaTeX/TikZ (`docs/recherche/maths.md`).
 
 - ⬜ Mesurer la justesse sur l'écriture réelle (200 lignes d'Antsa, au doigt) : CER, mots justes, latence sur le Pad 7.
