@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 700" width="700" height="700">
+  <!-- Fanoratana : une main écrit au stylo, une ligne d'écriture sort de la pointe.
+       Trait unique, noir sur blanc, bouts et jointures ronds (identité donnée par Antsa, 2026-11-08). -->
+  <rect width="700" height="700" fill="#fff"/>
+  <g fill="none" stroke="#000" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <!-- l'écriture -->
+    <path d="M176 300 C196 300 196 238 222 238 C248 238 244 292 268 292 C292 292 282 196 300 194 C318 192 318 214 306 222"/>
+    <!-- le stylo -->
+    <path d="M310 232 L352 238 L510 352 C524 362 520 386 500 388 L494 388 L338 284 Z"/>
+    <path d="M310 232 L338 284"/>
+    <path d="M352 238 C346 256 344 270 338 284"/>
+    <!-- les doigts posés sur le stylo -->
+    <path d="M362 240 C372 226 398 228 444 244 C470 254 500 280 518 308 C528 324 522 340 508 336"/>
+    <!-- la paume et le pouce -->
+    <path d="M366 288 C354 296 352 312 352 336 C352 380 356 420 376 452"/>
+    <path d="M470 452 C470 432 472 418 484 404"/>
+    <!-- la manchette -->
+    <rect x="366" y="460" width="118" height="46" rx="5"/>
+  </g>
+</svg>

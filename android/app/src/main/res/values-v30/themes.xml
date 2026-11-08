@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Draw under the display cutout (notch, punch hole) so no bar is left empty; the app keeps its
+         content out of the cutout through the insets it reads (FanoActivity.systemInsets). -->
+    <style name="Fanoratana" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@color/fano_fond</item>
+        <item name="android:statusBarColor">@color/fano_fond</item>
+        <item name="android:navigationBarColor">@color/fano_fond</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">always</item>
+    </style>
+</resources>

@@ -17,6 +17,7 @@ fano-ink = { path = "crates/fano-ink" }
 fano-reco = { path = "crates/fano-reco" }
 fano-render = { path = "crates/fano-render" }
 fano-ui = { path = "crates/fano-ui" }
+fano-maj = { path = "crates/fano-maj" }
 egui = "0.36"
 eframe = { version = "0.36", default-features = false }
 egui_extras = { version = "0.36", default-features = false }

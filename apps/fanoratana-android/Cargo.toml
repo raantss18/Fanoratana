@@ -1,0 +1,33 @@
+[package]
+name = "fanoratana-android"
+description = "Fanoratana sur Android : la même interface que sur Linux."
+version = "0.0.1"
+edition = "2024"
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[target.'cfg(target_os = "android")'.dependencies]
+fano-ui = { path = "../../crates/fano-ui" }
+fano-android = { path = "../../crates/fano-android" }
+eframe = { version = "0.36", default-features = false, features = ["default_fonts", "wgpu", "accesskit", "android-game-activity"] }
+egui = "0.36"
+log = "0.4"
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[profile.android]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 2

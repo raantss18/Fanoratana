@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Fanoratana
+Comment=Écrire son cours à la main, il se met au propre
+Comment[en]=Write your lessons by hand, they tidy themselves up
+Exec=fanoratana
+Icon=fanoratana
+Categories=Education;Office;
+Keywords=cours;manuscrit;stylet;notes;diapos;

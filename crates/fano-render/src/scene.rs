@@ -10,10 +10,10 @@ use crate::rough::{self, Alea};
 /// Couleurs du cahier (docs/design.md).
 pub mod teinte {
     use fano_core::Couleur;
-    pub const PAPIER: Couleur = Couleur([0xfb, 0xfc, 0xfe, 0xff]);
-    pub const LIGNE: Couleur = Couleur([0xb9, 0xcb, 0xee, 0xff]);
-    pub const LIGNE_FINE: Couleur = Couleur([0xdd, 0xe6, 0xf7, 0xff]);
-    pub const MARGE: Couleur = Couleur([0xd8, 0x46, 0x3f, 0xff]);
+    pub const PAPIER: Couleur = Couleur([0xff, 0xff, 0xff, 0xff]);
+    pub const LIGNE: Couleur = Couleur([0xcf, 0xcf, 0xcf, 0xff]);
+    pub const LIGNE_FINE: Couleur = Couleur([0xe8, 0xe8, 0xe8, 0xff]);
+    pub const MARGE: Couleur = Couleur([0xbd, 0xbd, 0xbd, 0xff]);
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -344,12 +344,13 @@ pub fn texte(t: &Texte) -> (Vec<Prim>, Rect) {
 pub fn style_encadre(e: fano_core::Encadre) -> (&'static str, Couleur) {
     use fano_core::Encadre as E;
     match e {
-        E::Aucun => ("", Couleur::ENCRE),
-        E::Definition => ("Définition", Couleur::BLEU),
-        E::ARetenir => ("À retenir", teinte::MARGE),
-        E::Exemple => ("Exemple", Couleur::VERT),
-        E::Exercice => ("Exercice", Couleur::ORANGE),
-        E::Citation => ("Citation", Couleur::VIOLET),
+        // Monochrome : l'étiquette et la forme du cadre les distinguent (docs/design.md).
+        E::Aucun => ("", Couleur::NOIR),
+        E::Definition => ("Définition", Couleur::NOIR),
+        E::ARetenir => ("À retenir", Couleur::NOIR),
+        E::Exemple => ("Exemple", Couleur::NOIR),
+        E::Exercice => ("Exercice", Couleur::NOIR),
+        E::Citation => ("Citation", Couleur::NOIR),
     }
 }
 
@@ -380,7 +381,16 @@ fn encadre(t: &Texte, rect: Rect) -> Vec<Prim> {
                 r.max,
                 Point::new(r.min.x, r.max.y),
             ],
-            couleur: Couleur([c.0[0], c.0[1], c.0[2], 0x10]),
+            couleur: Couleur([
+                c.0[0],
+                c.0[1],
+                c.0[2],
+                if t.encadre == fano_core::Encadre::ARetenir {
+                    0x0d
+                } else {
+                    0x00
+                },
+            ]),
         });
         let coins = [
             r.min,

@@ -16,7 +16,12 @@ pub fn squelette(points: &[PointEncre], epaisseur: f32, pression_reelle: bool) -
     let mut lisses: Vec<(Point, f32)> = Vec::with_capacity(points.len());
     let mut prec = points[0].pos();
     for (i, p) in points.iter().enumerate() {
-        let cur = if i == 0 { p.pos() } else { prec.lerp(p.pos(), 0.6) };
+        // Lissage des petits tremblements seulement : un point lointain (événements espacés) est pris tel quel.
+        let cur = if i == 0 || prec.dist(p.pos()) > epaisseur * 4.0 {
+            p.pos()
+        } else {
+            prec.lerp(p.pos(), 0.6)
+        };
         prec = cur;
         lisses.push((cur, p.p));
     }
@@ -134,6 +139,19 @@ mod tests {
                 t: i as u32 * 8,
             })
             .collect()
+    }
+
+    #[test]
+    fn points_espaces_non_deformes() {
+        let sq = squelette(
+            &pts(&[(0.0, 0.0), (300.0, 0.0), (300.0, 200.0), (0.0, 200.0)]),
+            2.0,
+            false,
+        );
+        assert_eq!(
+            sq.iter().map(|s| s.0).collect::<Vec<_>>(),
+            [(0.0, 0.0), (300.0, 0.0), (300.0, 200.0), (0.0, 200.0)].map(|(x, y)| Point::new(x, y))
+        );
     }
 
     #[test]

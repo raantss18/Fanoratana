@@ -1,0 +1,19 @@
+[package]
+name = "fano-maj"
+description = "Les mises à jour de Fanoratana, dans l'app : recherche, téléchargement, vérification (SHA-256 et signature Ed25519)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ureq = { version = "3.4", default-features = false, features = ["rustls"] }
+sha2 = "0.10"
+ed25519-dalek = { version = "3.0", default-features = false, features = ["fast"] }
+base64 = "0.22"
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+
+[dev-dependencies]
+ed25519-dalek = { version = "3.0", default-features = false, features = ["fast", "rand_core"] }

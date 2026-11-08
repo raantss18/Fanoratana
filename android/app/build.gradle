@@ -1,0 +1,68 @@
+// Fanoratana : une seule app ; la bibliothèque Rust est construite par scripts/android-build.sh
+// dans src/main/jniLibs.
+plugins {
+    id "com.android.application"
+}
+
+def version = file("../../VERSION").text.trim()
+def parts = version.tokenize(".")
+// Chaque chiffre va de 0 à 9 (règle d'Antsa) : 0.0.1 → 1, 0.1.0 → 10, 1.0.0 → 100.
+def versionNumber = parts[0].toInteger() * 100 + parts[1].toInteger() * 10 + parts[2].toInteger()
+
+// Signature : un keystore hors du dépôt (release-keys/, jamais poussé). Sans lui, clé de débogage.
+def ks = new Properties()
+def ksFile = rootProject.file("../release-keys/keystore.properties")
+if (ksFile.exists()) ksFile.withInputStream { ks.load(it) }
+def ksPath = ks.getProperty("storeFile")
+def haveKey = ksPath != null && file(ksPath).exists()
+
+android {
+    namespace "mg.fanoratana.shell"
+    compileSdk 36
+    ndkVersion "28.2.13676358"
+
+    defaultConfig {
+        applicationId "mg.fanoratana.app"
+        minSdk 26
+        targetSdk 36
+        versionCode versionNumber
+        versionName version
+        manifestPlaceholders = [label: "Fanoratana", lib: "fanoratana_android"]
+        ndk { abiFilters "arm64-v8a" }
+    }
+
+    signingConfigs {
+        if (haveKey) {
+            release {
+                storeFile file(ksPath)
+                storePassword ks.getProperty("storePassword")
+                keyAlias ks.getProperty("keyAlias")
+                keyPassword ks.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            signingConfig haveKey ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        jniLibs.useLegacyPackaging true
+    }
+}
+
+dependencies {
+    implementation "androidx.games:games-activity:4.4.0"
+    implementation "androidx.appcompat:appcompat:1.7.1"
+    implementation "androidx.core:core:1.16.0"
+}

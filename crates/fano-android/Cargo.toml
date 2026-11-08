@@ -1,0 +1,18 @@
+[package]
+name = "fano-android"
+description = "La passerelle Android de Fanoratana (reprise de mahay-android) : journaux, dossiers, pickers, clavier, doigt ou stylet, installation des mises à jour."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+egui = { workspace = true }
+android-activity = { version = "0.6", features = ["game-activity"] }
+android_logger = { version = "0.15", default-features = false }
+jni = "0.21"
+log = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+log = { workspace = true }

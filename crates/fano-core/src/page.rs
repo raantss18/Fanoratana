@@ -12,6 +12,7 @@ use crate::geom::{Point, Rect};
 pub struct Couleur(pub [u8; 4]);
 
 impl Couleur {
+    pub const NOIR: Couleur = Couleur([0x00, 0x00, 0x00, 0xff]);
     pub const ENCRE: Couleur = Couleur([0x1f, 0x2a, 0x44, 0xff]);
     pub const BLEU: Couleur = Couleur([0x1c, 0x5d, 0xc9, 0xff]);
     pub const ROUGE: Couleur = Couleur([0xc9, 0x2a, 0x2a, 0xff]);

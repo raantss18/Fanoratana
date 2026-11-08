@@ -469,3 +469,25 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod tests_peu_de_points {
+    use super::*;
+
+    /// Un rectangle tracé avec très peu de points (événements espacés) : relevé sur la tablette, 2026-11-08.
+    #[test]
+    fn rectangle_cinq_points() {
+        let pts: Vec<Point> = [
+            (600.0, 1500.0),
+            (1300.0, 1505.0),
+            (1302.0, 1900.0),
+            (598.0, 1898.0),
+            (600.0, 1502.0),
+        ]
+        .iter()
+        .map(|&(x, y)| Point::new(x * 0.5, y * 0.5))
+        .collect();
+        let f = reconnaitre_forme(&pts).expect("une forme");
+        assert_eq!(f.kind, FormeKind::Rectangle, "{f:?}");
+    }
+}
