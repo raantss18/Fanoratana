@@ -1403,6 +1403,16 @@ pub(crate) fn forme_isolee(t: &Trait, ligne: &[Trait]) -> Option<fano_ink::Forme
         f.kind,
         FormeKind::Segment | FormeKind::Fleche | FormeKind::Polyligne
     );
+    // Un trait ouvert qui coiffe de l'écriture (le √ et sa barre au-dessus de x) est un signe, pas un dessin.
+    let coiffe = ligne.iter().any(|o| {
+        o != t && {
+            let c = o.bbox().center();
+            c.x > b.min.x + 0.2 * b.width() && c.x < b.max.x && c.y > b.min.y && c.y < b.max.y
+        }
+    });
+    if ouverte && coiffe && !matches!(f.kind, FormeKind::Segment) {
+        return None;
+    }
     if ouverte {
         // Une branche d'arbre (trait, « < ») : nettement plus longue que les lettres voisines (1,6 × la
         // médiane), et jamais un trait court (« 1 », « l », « - »).

@@ -46,6 +46,12 @@
 - ✅ L'APK avec ML Kit plantait au démarrage (R8 retirait `WorkDatabase_Impl` de WorkManager) : règles de conservation dans
   `android/app/proguard-rules.pro` ; à vérifier sur la tablette après chaque ajout de dépendance Android.
 
+- ✅ Le modèle Google ne se téléchargeait jamais : R8 retirait les registres de ML Kit (constructeurs appelés par réflexion) ;
+  règles dans `android/app/proguard-rules.pro`, vérifié sur 8df629a (« Modèle prêt, hors ligne »).
+- ✅ « Mise à jour impossible : 404 » quand aucune version n'est publiée : ce n'est plus une erreur.
+- ✅ Un √ tracé au-dessus de x devenait une forme : un trait ouvert qui coiffe de l'écriture reste un signe.
+- ⬜ Réglages en portrait étroit : la fenêtre déborde de l'écran ; le titre de la leçon passe sous « Insérer ».
+
 ## 1. Version 0.0.1 (2026-11-08)
 
 - ✅ Conception : questions à Antsa, recherche sourcée (`docs/recherche/reconnaissance.md`), ADR 0001–0009, identité (ADR 0006).

@@ -103,7 +103,11 @@ fn lire(url: &str, max: u64) -> Result<Vec<u8>, String> {
 
 /// Lit et vérifie la dernière version publiée. `Ok(None)` : on est à jour.
 pub fn chercher(actuelle: &str) -> Result<Option<Version>, String> {
-    let json = lire(&format!("{ADRESSE}/release.json"), 1 << 20)?;
+    // Aucune version publiée (404) : rien à installer, ce n'est pas une erreur.
+    let json = match lire(&format!("{ADRESSE}/release.json"), 1 << 20) {
+        Err(e) if e.contains("404") => return Ok(None),
+        r => r?,
+    };
     let sig = lire(&format!("{ADRESSE}/release.json.sig"), 4096)?;
     verifier(&json, &String::from_utf8_lossy(&sig))?;
     let v: Version = serde_json::from_slice(&json).map_err(|e| e.to_string())?;
