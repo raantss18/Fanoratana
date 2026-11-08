@@ -18,6 +18,8 @@ use crate::teinte;
 use crate::textes::{T, t};
 
 const ECART: f32 = 28.0;
+/// La carte « Ajouter une page » sous la dernière page.
+const CARTE: f32 = 120.0;
 
 /// Ce que devient un trait de l'outil Formes.
 enum Issue {
@@ -66,7 +68,7 @@ impl Fanoratana {
         // Rotation, fenêtre flottante, écran partagé : la feuille se recadre.
         if (zone.width() - self.largeur_vue).abs() > 2.0 {
             if self.largeur_vue > 0.0 {
-                let ancien = ((self.largeur_vue - 40.0) / w).clamp(0.3, 1.8);
+                let ancien = ((self.largeur_vue - 16.0) / w).clamp(0.3, 2.5);
                 if (self.zoom - ancien).abs() < 1e-3 {
                     self.recadrer = true;
                 }
@@ -74,7 +76,7 @@ impl Fanoratana {
             self.largeur_vue = zone.width();
         }
         if self.recadrer {
-            self.zoom = ((zone.width() - 40.0) / w).clamp(0.3, 1.8);
+            self.zoom = ((zone.width() - 16.0) / w).clamp(0.3, 2.5);
             self.defil = egui::Vec2::ZERO;
             self.recadrer = false;
         }
@@ -82,17 +84,34 @@ impl Fanoratana {
         self.gestes(ui, zone, &rep);
         // Défilement borné : on ne perd jamais la feuille.
         let n = self.ouverte.as_ref().map_or(1, |o| o.lecon.pages.len()) as f32;
-        let total = n * (h + ECART) * self.zoom + ECART;
+        let total = n * (h + ECART) * self.zoom + ECART + CARTE * self.zoom;
         self.defil.y = self.defil.y.clamp(-(total - zone.height() * 0.5).max(0.0), 0.0);
+        // Gauche-droite : la page est ajustée à la largeur et bloquée sur ses bords ; zoomée, on va
+        // jusqu'à ses bords, jamais au-delà.
         let largeur = w * self.zoom;
-        let jeu = ((largeur - zone.width()) / 2.0 + 40.0).max(0.0);
-        self.defil.x = self.defil.x.clamp(-jeu, jeu);
+        let jeu = ((largeur - zone.width()) / 2.0 + 8.0).max(0.0);
+        self.defil.x = if largeur <= zone.width() - 16.0 {
+            0.0
+        } else {
+            self.defil.x.clamp(-jeu, jeu)
+        };
 
+        // Faire venir à l'écran ce qui vient d'être inséré plus bas.
+        if let Some((p, y)) = self.montrer.take() {
+            if let Some(r) = self.reperes(zone).get(p) {
+                let actuel = r.ecran(Point::new(0.0, y)).y;
+                self.defil.y -= actuel - (zone.top() + zone.height() * 0.3);
+            }
+        }
         let reperes = self.reperes(zone);
         let painter = ui.painter_at(zone);
         // La page vue : celle qui occupe le milieu de l'écran.
         if let Some((i, _)) = self.page_sous(&reperes, zone.center()) {
             self.page_vue = i;
+            if let Some(r) = reperes.get(i) {
+                let haut = r.page(zone.left_top()).y.max(0.0);
+                self.vue_page = (haut, zone.height() / self.zoom);
+            }
         }
         let coffre = self.coffre.racine.clone();
         if let Some(o) = &self.ouverte {
@@ -102,6 +121,33 @@ impl Fanoratana {
                     continue;
                 }
                 peinture::page(&painter, r, &o.lecon.pages[i], format, &mut self.images, &coffre);
+            }
+        }
+        // Sous la dernière page : une carte pour en ajouter une.
+        if let Some(r) = reperes.last() {
+            let carte = r.rect(Rect::from_min_size(
+                Point::new(0.0, h + ECART * 0.6),
+                w,
+                CARTE - ECART,
+            ));
+            if carte.intersects(zone) {
+                painter.add(egui::Shape::dashed_line(
+                    &rect_points(carte),
+                    Stroke::new(1.5, teinte::DOUX),
+                    8.0,
+                    6.0,
+                ));
+                painter.text(
+                    carte.center(),
+                    egui::Align2::CENTER_CENTER,
+                    format!("+  {}", t(self.langue, T::AjouterPage)),
+                    egui::FontId::proportional(18.0),
+                    teinte::GRAPHITE,
+                );
+                let rep = ui.interact(carte, ui.id().with("ajouter-page"), Sense::click());
+                if rep.clicked() {
+                    self.ajouter_page_fin();
+                }
             }
         }
         // Une page vide dit quoi faire.
@@ -162,6 +208,12 @@ impl Fanoratana {
         if let Some(o) = &self.ouverte {
             let titre = format!("{} — {}", o.fil, o.lecon.titre);
             let n = o.lecon.pages.len();
+            // Le fil a son propre fond : il ne se mêle jamais au contenu qui défile dessous.
+            let galley =
+                painter.layout_no_wrap(titre.clone(), egui::FontId::proportional(14.0), teinte::DOUX);
+            let fond =
+                egui::Rect::from_min_size(zone.left_top() + vec2(8.0, 2.0), galley.size() + vec2(16.0, 8.0));
+            painter.rect_filled(fond, 6.0, Color32::from_rgba_unmultiplied(0xf1, 0xf1, 0xf1, 235));
             painter.text(
                 zone.left_top() + vec2(16.0, 6.0),
                 egui::Align2::LEFT_TOP,
@@ -326,6 +378,13 @@ impl Fanoratana {
             let Some((page, pt)) = self.page_sous(&reperes, p) else {
                 return;
             };
+            // Hors des feuilles (entre deux pages, sur la carte « Ajouter une page ») : ni encre ni geste.
+            let h_page = self.ouverte.as_ref().map_or(842.0, |o| o.lecon.format.taille().1);
+            if (pt.y < -2.0 || pt.y > h_page + 2.0)
+                && matches!(self.outil, Outil::Ecrire | Outil::Formes | Outil::Gomme)
+            {
+                return;
+            }
             let pointeur = self.plateforme.pointeur(self.toucher);
             let doigt_deplace = pointeur == Pointeur::Doigt && !self.reglages.doigt_ecrit;
             self.geste = match self.outil {
@@ -639,6 +698,17 @@ impl Fanoratana {
             p.elements.push(Element::Encre(trait_.clone()));
         }
         self.modifie();
+        // On écrit en bas de la dernière page : la suivante est proposée.
+        let derniere = self
+            .ouverte
+            .as_ref()
+            .is_some_and(|o| page + 1 == o.lecon.pages.len());
+        let h_page = self.ouverte.as_ref().map_or(842.0, |o| o.lecon.format.taille().1);
+        if derniere && trait_.bbox().max.y > h_page * 0.88 && !self.page_proposee {
+            self.page_proposee = true;
+            let m = t(self.langue, T::FinDePage).to_owned();
+            self.dire(m);
+        }
         if self.outil == Outil::Ecrire {
             self.attente.push((page, trait_));
             self.derniere_ecriture = Some(self.maintenant);
@@ -819,6 +889,7 @@ impl Fanoratana {
             return;
         }
         let fonction = !crate::editeur::definitions(&lecture.texte).is_empty();
+        let gras = self.est_gras(page, traits);
         // Taille : la hauteur de l'écriture ; un mot sans hampe ni jambage est plus bas.
         let taille = (b.height() / 0.85).clamp(14.0, 72.0);
         let texte = Texte {
@@ -829,6 +900,7 @@ impl Fanoratana {
             largeur: (largeur_page - b.min.x - 24.0).max(b.width()),
             titre: 0,
             encadre: fano_core::Encadre::Aucun,
+            gras,
             source: traits.to_vec(),
             alternatives: lecture.alternatives,
             ..Default::default()
@@ -851,6 +923,40 @@ impl Fanoratana {
             let m = t(self.langue, T::AstuceTracer).to_owned();
             self.dire(m);
         }
+    }
+
+    /// Une ligne écrite nettement plus épaisse que l'écriture habituelle de la page est du gras.
+    /// Référence : l'épaisseur médiane des autres écritures de la page (encre et textes lus) ; sans
+    /// autre écriture, le stylo fin par défaut.
+    pub(crate) fn est_gras(&self, page: usize, traits: &[Trait]) -> bool {
+        let longueur: f32 = traits.iter().map(|t| t.longueur().max(1.0)).sum();
+        let poids = traits
+            .iter()
+            .map(|t| t.poids() * t.longueur().max(1.0))
+            .sum::<f32>()
+            / longueur.max(1.0);
+        let mut autres: Vec<f32> = self
+            .ouverte
+            .as_ref()
+            .and_then(|o| o.lecon.pages.get(page))
+            .map(|p| {
+                p.elements
+                    .iter()
+                    .flat_map(|e| match e {
+                        Element::Encre(t) if !t.surligneur && !traits.contains(t) => vec![t.poids()],
+                        Element::Texte(tx) if !tx.gras => tx.source.iter().map(Trait::poids).collect(),
+                        _ => vec![],
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        autres.sort_by(f32::total_cmp);
+        let reference = if autres.len() >= 3 {
+            autres[autres.len() / 2]
+        } else {
+            2.2 * 0.9
+        };
+        poids >= reference * 1.45
     }
 
     /// « Mettre au propre » : la sélection, ou toute l'encre en attente, ou toute l'encre de la page.

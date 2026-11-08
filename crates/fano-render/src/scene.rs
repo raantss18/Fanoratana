@@ -370,6 +370,46 @@ pub fn texte(t: &Texte) -> (Vec<Prim>, Rect) {
     if t.alignement != fano_core::Alignement::Gauche && dispo > 0.0 {
         largeur_max = largeur_max.max(dispo + retrait);
     }
+    if t.gras {
+        // Gras : la même écriture, repassée (trois passages décalés), comme on appuie le crayon.
+        let d = taille * 0.022;
+        let mut epais = Vec::with_capacity(prims.len() * 3);
+        for p in prims {
+            if let Prim::Texte {
+                pos,
+                texte,
+                taille,
+                couleur,
+                police,
+            } = &p
+            {
+                for k in [1.0f32, 2.0] {
+                    epais.push(Prim::Texte {
+                        pos: Point::new(pos.x + d * k, pos.y),
+                        texte: texte.clone(),
+                        taille: *taille,
+                        couleur: *couleur,
+                        police: *police,
+                    });
+                }
+            }
+            if let Prim::Trace {
+                pts,
+                epaisseur,
+                couleur,
+            } = p
+            {
+                epais.push(Prim::Trace {
+                    pts,
+                    epaisseur: epaisseur * 1.7,
+                    couleur,
+                });
+            } else {
+                epais.push(p);
+            }
+        }
+        prims = epais;
+    }
     fonds.append(&mut prims);
     let mut prims = fonds;
     if t.titre == 1 && largeur_max > 0.0 {
@@ -557,6 +597,14 @@ mod tests {
             alternatives: vec![],
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn gras_repasse() {
+        let mut tx = t("Mot", 0.0);
+        let n = texte(&tx).0.len();
+        tx.gras = true;
+        assert_eq!(texte(&tx).0.len(), n * 3, "chaque morceau est repassé deux fois");
     }
 
     #[test]

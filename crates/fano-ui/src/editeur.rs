@@ -342,9 +342,10 @@ impl Fanoratana {
                     }
                 });
         });
-        ui.columns(2, |cols| {
-            crate::widgets::interrupteur(&mut cols[0], &mut tx.souligne, t(l, T::Souligne));
-            crate::widgets::interrupteur(&mut cols[1], &mut tx.surligne, t(l, T::Surligne));
+        ui.columns(3, |cols| {
+            crate::widgets::interrupteur(&mut cols[0], &mut tx.gras, t(l, T::Gras));
+            crate::widgets::interrupteur(&mut cols[1], &mut tx.souligne, t(l, T::Souligne));
+            crate::widgets::interrupteur(&mut cols[2], &mut tx.surligne, t(l, T::Surligne));
         });
         ui.horizontal(|ui| {
             for c in crate::app::PALETTE {

@@ -70,6 +70,15 @@ pub struct Trait {
 }
 
 impl Trait {
+    /// L'épaisseur réelle moyenne du trait (épaisseur du stylo × appui), pour reconnaître le gras.
+    pub fn poids(&self) -> f32 {
+        if self.points.is_empty() {
+            return self.epaisseur;
+        }
+        let p = self.points.iter().map(|q| q.p).sum::<f32>() / self.points.len() as f32;
+        self.epaisseur * (0.45 + 0.9 * p.clamp(0.0, 1.0))
+    }
+
     pub fn bbox(&self) -> Rect {
         Rect::from_points(self.points.iter().map(PointEncre::pos))
     }
@@ -111,6 +120,9 @@ pub struct Texte {
     pub alignement: Alignement,
     #[serde(default)]
     pub souligne: bool,
+    /// Gras : écrit plus épais que d'habitude, ou choisi au clavier.
+    #[serde(default)]
+    pub gras: bool,
     /// Surligné (fond jaune pâle à l'écran, gris à l'impression monochrome).
     #[serde(default)]
     pub surligne: bool,
@@ -533,6 +545,7 @@ mod tests {
             liste: Liste::Aucune,
             alignement: Alignement::Gauche,
             souligne: false,
+            gras: true,
             surligne: false,
             source: vec![],
             alternatives: vec![],
@@ -540,6 +553,39 @@ mod tests {
         let s = l.vers_json();
         assert_eq!(Lecon::depuis_json(&s).unwrap(), l);
         assert!(l.markdown().contains("Une fraction $\\frac{a}{b}$"));
+    }
+
+    #[test]
+    fn poids_du_trait() {
+        let pts = |p: f32| {
+            (0..10)
+                .map(|i| PointEncre {
+                    x: i as f32,
+                    y: 0.0,
+                    p,
+                    t: 0,
+                })
+                .collect::<Vec<_>>()
+        };
+        let fin = Trait {
+            points: pts(0.5),
+            couleur: Couleur::NOIR,
+            epaisseur: 2.2,
+            surligneur: false,
+        };
+        let appuye = Trait {
+            points: pts(1.0),
+            ..fin.clone()
+        };
+        let large = Trait {
+            epaisseur: 4.0,
+            ..fin.clone()
+        };
+        assert!(appuye.poids() > fin.poids() * 1.3);
+        assert!(
+            large.poids() >= fin.poids() * 1.45,
+            "un stylo nettement plus large est du gras"
+        );
     }
 
     #[test]

@@ -1322,9 +1322,11 @@ dependencies = [
 name = "fano-reco"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
  "fano-core",
  "fano-ink",
  "log",
+ "serde_json",
  "tiny-skia",
  "tract-onnx",
 ]

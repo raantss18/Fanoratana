@@ -139,7 +139,13 @@ pub fn telecharger(v: &Version, dossier: &Path, progres: impl Fn(f32)) -> Result
 }
 
 /// Télécharge `url` dans `dest`, vérifie la taille et le SHA-256 (sinon le fichier est effacé).
-pub fn telecharger_fichier(url: &str, dest: &Path, taille: u64, sha256: &str, progres: impl Fn(u64)) -> Result<(), String> {
+pub fn telecharger_fichier(
+    url: &str,
+    dest: &Path,
+    taille: u64,
+    sha256: &str,
+    progres: impl Fn(u64),
+) -> Result<(), String> {
     if let Some(d) = dest.parent() {
         std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
     }

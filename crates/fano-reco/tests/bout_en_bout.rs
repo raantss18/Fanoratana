@@ -115,6 +115,9 @@ fn lit_des_formules() {
         let l = m.lire(&encre(ecrit)).unwrap();
         println!("{ecrit:?} → {l:?} en {:?}", t.elapsed());
         let compact: String = l.chars().filter(|c| !c.is_whitespace()).collect();
-        assert!(compact.contains(&attendu.replace("(x)", "(x)")) || !compact.is_empty(), "{l}");
+        assert!(
+            compact.contains(&attendu.replace("(x)", "(x)")) || !compact.is_empty(),
+            "{l}"
+        );
     }
 }

@@ -207,7 +207,11 @@ impl Lecteur {
     }
 
     pub fn lire(&self, id: u64, traits: &[fano_core::Trait], mode: Mode) {
-        let _ = self.envoi.send(Demande { id, traits: traits.to_vec(), mode });
+        let _ = self.envoi.send(Demande {
+            id,
+            traits: traits.to_vec(),
+            mode,
+        });
     }
 }
 
@@ -233,7 +237,9 @@ fn lire_demande(
     };
     if essayer_formule {
         if mfr.is_none() && formules::present(dossier) {
-            *mfr = formules::ModeleFormules::charger(dossier).map_err(|e| log::error!("formules : {e}")).ok();
+            *mfr = formules::ModeleFormules::charger(dossier)
+                .map_err(|e| log::error!("formules : {e}"))
+                .ok();
         }
         match mfr.as_ref() {
             Some(m) => {

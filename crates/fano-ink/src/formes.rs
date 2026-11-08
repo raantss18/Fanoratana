@@ -644,7 +644,12 @@ mod tests_tablette {
     /// Le triangle tracé sur le Pad 7 (2026-11-08) : 3 côtés de 10 points, fermé.
     #[test]
     fn triangle_de_la_tablette() {
-        let tri = [(700.0, 1750.0), (1150.0, 1760.0), (780.0, 1350.0), (700.0, 1748.0)];
+        let tri = [
+            (700.0, 1750.0),
+            (1150.0, 1760.0),
+            (780.0, 1350.0),
+            (700.0, 1748.0),
+        ];
         let mut pts = Vec::new();
         for i in 0..3 {
             let ((x1, y1), (x2, y2)) = (tri[i], tri[i + 1]);

@@ -7,7 +7,7 @@ use crate::teinte;
 
 /// Un interrupteur (Material 3), avec son libellé à gauche ; toute la ligne est cliquable (≥ 48 dp).
 pub fn interrupteur(ui: &mut Ui, valeur: &mut bool, libelle: &str) -> Response {
-    let largeur = ui.available_width().max(220.0);
+    let largeur = ui.available_width().max(140.0);
     let (r, mut rep) = ui.allocate_exact_size(vec2(largeur, 48.0), Sense::click());
     if rep.clicked() {
         *valeur = !*valeur;

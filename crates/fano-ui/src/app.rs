@@ -152,6 +152,12 @@ pub struct Fanoratana {
     pub(crate) mode_lecture: ModeLecture,
     pub(crate) tableau_taille: (usize, usize),
     /// Téléchargement du modèle des formules : part faite (0..1), ou erreur.
+    /// La partie visible de la page vue : (haut, hauteur), en coordonnées de page.
+    pub(crate) vue_page: (f32, f32),
+    /// Un point de page à faire venir à l'écran (après une insertion hors de vue).
+    pub(crate) montrer: Option<(usize, f32)>,
+    /// La fin de page a déjà été signalée pour cette page.
+    pub(crate) page_proposee: bool,
     pub(crate) modele_formules: std::sync::Arc<std::sync::Mutex<Option<Result<f32, String>>>>,
 }
 
@@ -187,7 +193,10 @@ impl Fanoratana {
             Coffre { racine }
         });
         let reveil = ctx.clone();
-        let lecteur = Some(Lecteur::demarrer(dossier.join("modeles").join("pix2text-mfr"), move || reveil.request_repaint()));
+        let lecteur = Some(Lecteur::demarrer(
+            dossier.join("modeles").join("pix2text-mfr"),
+            move || reveil.request_repaint(),
+        ));
         let mut app = Fanoratana {
             plateforme,
             dossier,
@@ -230,6 +239,9 @@ impl Fanoratana {
             mode_lecture: ModeLecture::Auto,
             tableau_taille: (3, 3),
             modele_formules: Default::default(),
+            vue_page: (0.0, 0.0),
+            montrer: None,
+            page_proposee: false,
         };
         // La dernière leçon, ou la première du coffre.
         let derniere = PathBuf::from(&app.reglages.derniere_lecon);
@@ -473,14 +485,15 @@ impl Fanoratana {
     /// Ouvre l'éditeur pour un texte neuf, placé sous le dernier élément de la page vue.
     pub(crate) fn nouveau_texte_clavier(&mut self) {
         let page = self.page_vue;
-        let Some(o) = &self.ouverte else { return };
-        let Some(p) = o.lecon.pages.get(page) else { return };
-        let bas = p
-            .elements
-            .iter()
-            .map(|e| fano_render::scene::bbox(e).max.y)
-            .fold(48.0_f32, f32::max);
-        let pos = fano_core::Point::new(72.0, bas + 16.0);
+        if self
+            .ouverte
+            .as_ref()
+            .and_then(|o| o.lecon.pages.get(page))
+            .is_none()
+        {
+            return;
+        }
+        let pos = fano_core::Point::new(72.0, self.bas_de_page(page) + 16.0);
         self.editeur = Some(Editeur::nouveau(page, self.texte_vide(pos)));
     }
 
@@ -942,7 +955,8 @@ impl Fanoratana {
         match etat {
             Some(Ok(p)) if p < 1.0 => {
                 ui.add(egui::ProgressBar::new(p).text(format!("{:.0} %", p * 100.0)));
-                ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(250));
             }
             autre => {
                 if let Some(Err(e)) = autre {
@@ -963,9 +977,15 @@ impl Fanoratana {
                             }
                             let e2 = etat.clone();
                             let base = deja;
-                            let r = fano_maj::telecharger_fichier(&fano_reco::formules::url(nom), &dest, taille, sha, move |n| {
-                                *e2.lock().unwrap() = Some(Ok((base + n) as f32 / total as f32 * 0.999));
-                            });
+                            let r = fano_maj::telecharger_fichier(
+                                &fano_reco::formules::url(nom),
+                                &dest,
+                                taille,
+                                sha,
+                                move |n| {
+                                    *e2.lock().unwrap() = Some(Ok((base + n) as f32 / total as f32 * 0.999));
+                                },
+                            );
                             if let Err(e) = r {
                                 *etat.lock().unwrap() = Some(Err(e));
                                 ctx.request_repaint();
@@ -981,14 +1001,32 @@ impl Fanoratana {
         }
     }
 
+    /// Une page de plus à la fin, et la feuille défile jusqu'à elle.
+    pub(crate) fn ajouter_page_fin(&mut self) {
+        self.memoriser();
+        let n = if let Some(o) = &mut self.ouverte {
+            let fond = o.lecon.pages.last().map(|p| p.fond).unwrap_or_default();
+            o.lecon.pages.push(Page {
+                elements: vec![],
+                fond,
+            });
+            o.lecon.pages.len()
+        } else {
+            return;
+        };
+        self.page_proposee = false;
+        self.montrer = Some((n - 1, 0.0));
+        self.modifie();
+    }
+
     /// Un tableau neuf, sous ce qui est déjà sur la page vue.
     pub(crate) fn inserer_tableau(&mut self) {
         let page = self.page_vue;
         let Some(o) = &self.ouverte else { return };
         let (pw, _) = o.lecon.format.taille();
-        let bas = self.bas_de_page(page);
         let (l, c) = self.tableau_taille;
-        let tb = fano_core::Tableau::nouveau(fano_core::Point::new(72.0, bas + 20.0), l, c, pw - 72.0 - 40.0);
+        let y = self.place_libre(page, l as f32 * 40.0);
+        let tb = fano_core::Tableau::nouveau(fano_core::Point::new(72.0, y), l, c, pw - 72.0 - 40.0);
         self.memoriser();
         if let Some(p) = self.pages().and_then(|p| p.get_mut(page)) {
             p.elements.push(Element::Tableau(tb));
@@ -1003,11 +1041,11 @@ impl Fanoratana {
         let page = self.page_vue;
         let Some(o) = &self.ouverte else { return };
         let (pw, _) = o.lecon.format.taille();
-        let bas = self.bas_de_page(page);
         let (xmin, xmax, ymin, ymax) = fano_render::scene::bornes_auto(&definitions);
         let w = (pw - 72.0 - 40.0).min(420.0);
+        let y = self.place_libre(page, w * 0.7);
         let g = fano_core::Graphe {
-            rect: fano_core::Rect::from_min_size(fano_core::Point::new(72.0, bas + 20.0), w, w * 0.7),
+            rect: fano_core::Rect::from_min_size(fano_core::Point::new(72.0, y), w, w * 0.7),
             definitions,
             xmin,
             xmax,
@@ -1024,7 +1062,50 @@ impl Fanoratana {
         self.modifie();
     }
 
-    pub(crate) fn bas_de_page(&self, page: usize) -> f32 {
+    /// Où poser un nouvel élément de hauteur `h` : un espace libre dans ce qu'on voit, sinon sous le
+    /// contenu, et la feuille défile jusqu'à lui. Jamais par-dessus ce qui est écrit.
+    pub(crate) fn place_libre(&mut self, page: usize, h: f32) -> f32 {
+        let (haut, hauteur) = self.vue_page;
+        let mut occupe: Vec<(f32, f32)> = self
+            .ouverte
+            .as_ref()
+            .and_then(|o| o.lecon.pages.get(page))
+            .map(|p| {
+                p.elements
+                    .iter()
+                    .map(|e| {
+                        let b = fano_render::scene::bbox(e);
+                        (b.min.y - 12.0, b.max.y + 12.0)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        occupe.sort_by(|a, b| a.0.total_cmp(&b.0));
+        if page == self.page_vue && hauteur > 0.0 {
+            let mut y = (haut + 24.0).max(40.0);
+            for (debut, fin) in &occupe {
+                if *fin < y {
+                    continue;
+                }
+                if *debut - y >= h {
+                    break;
+                }
+                y = y.max(*fin);
+            }
+            if y + h <= haut + hauteur - 24.0 {
+                return y;
+            }
+        }
+        let y = self.bas_contenu(page) + 20.0;
+        self.montrer = Some((page, y));
+        y
+    }
+
+    pub(crate) fn bas_de_page(&mut self, page: usize) -> f32 {
+        self.place_libre(page, 60.0)
+    }
+
+    pub(crate) fn bas_contenu(&self, page: usize) -> f32 {
         self.ouverte
             .as_ref()
             .and_then(|o| o.lecon.pages.get(page))
