@@ -36,6 +36,7 @@ fn texte(x: f32, y: f32, s: &str, taille: f32, titre: u8, encadre: Encadre) -> E
         encadre,
         source: vec![],
         alternatives: vec![],
+        ..Default::default()
     })
 }
 
@@ -154,6 +155,54 @@ fn preparer(dir: &std::path::Path) {
         0,
         Encadre::ARetenir,
     ));
+    // Page 2 : liste, mise en forme, tableau, courbe.
+    let mut p2 = Page {
+        elements: vec![],
+        fond: Fond::Carreaux,
+    };
+    let mut liste = Texte {
+        pos: Point::new(72.0, 40.0),
+        contenu: "Les causes\nLa crise financière\nLes idées des Lumières".into(),
+        taille: 22.0,
+        largeur: 460.0,
+        liste: Liste::Numeros,
+        ..Default::default()
+    };
+    p2.elements.push(Element::Texte(liste.clone()));
+    liste.pos = Point::new(72.0, 160.0);
+    liste.contenu = "Une phrase soulignée et surlignée".into();
+    liste.liste = Liste::Aucune;
+    liste.souligne = true;
+    liste.surligne = true;
+    liste.alignement = Alignement::Centre;
+    p2.elements.push(Element::Texte(liste));
+    let mut tb = Tableau::nouveau(Point::new(72.0, 220.0), 3, 3, 450.0);
+    tb.cellules = vec![
+        vec!["Date".into(), "Événement".into(), "Lieu".into()],
+        vec!["1789".into(), "Prise de la Bastille".into(), "Paris".into()],
+        vec!["1792".into(), "République".into(), "$x^2$".into()],
+    ];
+    p2.elements.push(Element::Tableau(tb));
+    let defs = vec![
+        "f(x)=x^2-2".to_owned(),
+        "g(x)=\\frac{1}{2}x+1".to_owned(),
+        "A=(2;2)".to_owned(),
+    ];
+    let (x0, x1, y0, y1) = fano_render::scene::bornes_auto(&defs);
+    p2.elements.push(Element::Graphe(Graphe {
+        rect: Rect::from_min_size(Point::new(72.0, 380.0), 420.0, 300.0),
+        definitions: defs,
+        xmin: x0,
+        xmax: x1,
+        ymin: y0,
+        ymax: y1,
+    }));
+    l.pages.push(p2);
+    std::fs::write(
+        dir.join("page2.png"),
+        fano_render::export::png_page(&l, 1, &coffre.racine, 1.5).unwrap(),
+    )
+    .unwrap();
     coffre.ecrire_lecon(&chemin, &l).unwrap();
     std::fs::write(
         dir.join("reglages.json"),
@@ -185,6 +234,10 @@ fn capture(nom: &str, taille: egui::Vec2, avant: impl Fn(&mut Harness<'_, Option
     avant(&mut h);
     h.run_steps(4);
     if let Some(d) = std::env::var_os("FANO_CAPTURES") {
+        let _ = std::fs::copy(
+            dir.path().join("page2.png"),
+            PathBuf::from(&d).join("export-page-2.png"),
+        );
         if let Ok(img) = h.render() {
             img.save(PathBuf::from(d).join(format!("{nom}.png"))).unwrap();
         }
@@ -198,5 +251,19 @@ fn ecrans() {
     capture("coffre", egui::vec2(1280.0, 800.0), |h| {
         use egui_kittest::kittest::Queryable;
         h.get_by_label("Mes cours").click();
+    });
+    for (nom, bouton) in [
+        ("menu-outil", "Outil"),
+        ("menu-inserer", "Insérer"),
+        ("menu-plus", "Plus"),
+    ] {
+        capture(nom, egui::vec2(1280.0, 800.0), |h| {
+            use egui_kittest::kittest::Queryable;
+            h.get_by_label(bouton).click();
+        });
+    }
+    capture("page-2", egui::vec2(800.0, 1280.0), |h| {
+        h.run_steps(2);
+        let _ = h;
     });
 }

@@ -7,6 +7,9 @@
 - ✅ Page cadrée pendant la fenêtre flottante, jamais recadrée en plein écran (Pad 7, 2026-11-08) : recadrage quand la largeur change.
 - ✅ Trait aux points espacés déformé par le lissage (rectangle devenu parallélogramme, Pad 7, 2026-11-08) : `points_espaces_non_deformes`.
 
+- ✅ Le clavier d'Android s'ouvrait et se fermait en boucle dans « Nouvelle leçon » (focus redemandé à chaque image) : des lettres
+  se perdaient (« Essai du cours » → « Esa dcours ») et l'app a fini par se fermer (Pad 7, 2026-11-08). Focus demandé une seule fois.
+
 ## 1. Version 0.0.1 (2026-11-08)
 
 - ✅ Conception : questions à Antsa, recherche sourcée (`docs/recherche/reconnaissance.md`), ADR 0001–0009, identité (ADR 0006).

@@ -38,6 +38,16 @@ pub fn reconnaitre_forme(trace: &[Point]) -> Option<FormeReconnue> {
     if pts.len() < 5 {
         return None;
     }
+    // Une flèche en un trait fait demi-tour à sa pointe : reconnue avant le filtre ci-dessous.
+    if pts[0].dist(*pts.last().unwrap()) >= diag * 0.2 {
+        if let Some(f) = fleche_un_trait(&pts, &[]) {
+            return Some(f);
+        }
+    }
+    // Une signature, un mot en cursive ou un dessin libre ne deviennent jamais une forme.
+    if est_trace_libre(&pts) {
+        return None;
+    }
     let debut = pts[0];
     let fin = *pts.last().unwrap();
     let ferme = debut.dist(fin) < diag * 0.2;
@@ -122,6 +132,69 @@ pub fn reconnaitre_forme(trace: &[Point]) -> Option<FormeReconnue> {
         kind,
         points: sommets,
     })
+}
+
+/// Signature ou dessin libre plutôt que forme géométrique ?
+///
+/// Critères classiques de classement encre/forme (cf. PaleoSketch, Paulson et Hammond 2008,
+/// https://doi.org/10.1145/1378773.1378775) : une forme simple tourne au plus d'un tour complet
+/// (≈ 2π), se recoupe au plus une fois (le bout qui ferme), et a peu de coins. Une signature
+/// enchaîne les boucles : beaucoup de tours, plusieurs croisements, beaucoup de coins.
+pub fn est_trace_libre(pts: &[Point]) -> bool {
+    let (tours, croisements, inversions) = mesures(pts);
+    let _ = PAS_MIN;
+    tours > 1.6 || croisements >= 2 || inversions >= 3
+}
+
+/// (tours cumulés de la direction, auto-intersections, changements de sens de rotation marqués).
+pub fn mesures(pts: &[Point]) -> (f32, usize, usize) {
+    // Sur un tracé grossier (1/20 de la diagonale) : les tremblements de la main ne comptent pas.
+    let r = fano_core::Rect::from_points(pts.iter().copied());
+    let grossier = reechantillonner(pts, (r.width().hypot(r.height()) / 20.0).max(PAS_MIN));
+    let pts = &grossier[..];
+    let mut total = 0.0;
+    let mut inversions = 0;
+    let mut sens_prec = 0.0f32;
+    let mut cumul_sens = 0.0f32;
+    for w in pts.windows(3) {
+        let (a, b) = (w[1] - w[0], w[2] - w[1]);
+        if a.len() < 1e-3 || b.len() < 1e-3 {
+            continue;
+        }
+        let ang = a.cross(b).atan2(a.dot(b));
+        total += ang.abs();
+        // Un changement de sens de rotation qui dure (pas un tremblement) : une boucle dans l'autre sens.
+        if ang.abs() > 0.05 {
+            if sens_prec != 0.0 && ang.signum() != sens_prec.signum() {
+                if cumul_sens.abs() > 1.2 {
+                    inversions += 1;
+                }
+                cumul_sens = 0.0;
+            }
+            sens_prec = ang;
+            cumul_sens += ang;
+        }
+    }
+    let n = pts.len();
+    let mut croisements = 0;
+    for i in 0..n.saturating_sub(1) {
+        for j in (i + 2)..n.saturating_sub(1) {
+            // Le bout qui rejoint le début (forme fermée) ne compte pas.
+            if i * 8 < n && j * 8 > 7 * n {
+                continue;
+            }
+            if secants(pts[i], pts[i + 1], pts[j], pts[j + 1]) {
+                croisements += 1;
+            }
+        }
+    }
+    (total / std::f32::consts::TAU, croisements, inversions)
+}
+
+fn secants(a: Point, b: Point, c: Point, d: Point) -> bool {
+    let o = |p: Point, q: Point, r: Point| (q - p).cross(r - p);
+    let (d1, d2, d3, d4) = (o(a, b, c), o(a, b, d), o(c, d, a), o(c, d, b));
+    (d1 * d2 < 0.0) && (d3 * d4 < 0.0)
 }
 
 /// Une pointe de flèche dessinée en un second trait près du bout d'un segment.
@@ -471,6 +544,78 @@ mod tests {
 }
 
 #[cfg(test)]
+mod tests_signature {
+    use super::*;
+
+    /// Une signature : boucles et lettres liées, sur une ligne.
+    fn signature() -> Vec<Point> {
+        (0..=300)
+            .map(|i| {
+                let t = i as f32 / 300.0 * 9.0;
+                // Boucles cursives (trochoïde) qui avancent, avec un paraphe.
+                Point::new(
+                    30.0 * t - 22.0 * (2.0 * t).sin(),
+                    40.0 * (2.0 * t).cos() + 10.0 * (0.7 * t).sin(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn une_signature_n_est_pas_une_forme() {
+        let s = signature();
+        let (tours, crois, inv) = mesures(&reechantillonner(&s, 4.0));
+        assert!(
+            est_trace_libre(&reechantillonner(&s, 4.0)),
+            "tours {tours} croisements {crois} inversions {inv}"
+        );
+        assert!(reconnaitre_forme(&s).is_none());
+    }
+
+    #[test]
+    fn un_gribouillis_en_s_n_est_pas_une_forme() {
+        let s: Vec<Point> = (0..=120)
+            .map(|i| {
+                let t = i as f32 / 120.0 * std::f32::consts::TAU * 1.5;
+                Point::new(60.0 * t.sin(), 30.0 * t)
+            })
+            .collect();
+        assert!(
+            reconnaitre_forme(&s)
+                .is_none_or(|f| f.kind != FormeKind::Ellipse && f.kind != FormeKind::Triangle)
+        );
+    }
+
+    #[test]
+    fn les_formes_restent_des_formes() {
+        for (nom, pts) in [
+            (
+                "cercle",
+                (0..=80)
+                    .map(|i| {
+                        let a = i as f32 / 80.0 * std::f32::consts::TAU;
+                        Point::new(100.0 + 60.0 * a.cos(), 100.0 + 60.0 * a.sin())
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            (
+                "triangle",
+                vec![
+                    Point::new(0.0, 0.0),
+                    Point::new(100.0, 5.0),
+                    Point::new(40.0, 90.0),
+                    Point::new(1.0, 1.0),
+                ],
+            ),
+        ] {
+            let r = reechantillonner(&pts, 3.0);
+            assert!(!est_trace_libre(&r), "{nom} : {:?}", mesures(&r));
+            assert!(reconnaitre_forme(&pts).is_some(), "{nom}");
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests_peu_de_points {
     use super::*;
 
@@ -489,5 +634,29 @@ mod tests_peu_de_points {
         .collect();
         let f = reconnaitre_forme(&pts).expect("une forme");
         assert_eq!(f.kind, FormeKind::Rectangle, "{f:?}");
+    }
+}
+
+#[cfg(test)]
+mod tests_tablette {
+    use super::*;
+
+    /// Le triangle tracé sur le Pad 7 (2026-11-08) : 3 côtés de 10 points, fermé.
+    #[test]
+    fn triangle_de_la_tablette() {
+        let tri = [(700.0, 1750.0), (1150.0, 1760.0), (780.0, 1350.0), (700.0, 1748.0)];
+        let mut pts = Vec::new();
+        for i in 0..3 {
+            let ((x1, y1), (x2, y2)) = (tri[i], tri[i + 1]);
+            for k in 0..10 {
+                let t = k as f32 / 10.0;
+                pts.push(Point::new((x1 + (x2 - x1) * t) / 2.5, (y1 + (y2 - y1) * t) / 2.5));
+            }
+        }
+        pts.push(Point::new(700.0 / 2.5, 1748.0 / 2.5));
+        let r = reechantillonner(&pts, 3.0);
+        eprintln!("mesures {:?}", mesures(&r));
+        let f = reconnaitre_forme(&pts);
+        assert_eq!(f.map(|f| f.kind), Some(FormeKind::Triangle));
     }
 }

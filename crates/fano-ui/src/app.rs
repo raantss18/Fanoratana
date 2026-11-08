@@ -28,6 +28,24 @@ pub struct Ouverte {
     pub retablir: Vec<Vec<Page>>,
 }
 
+/// Comment lire l'écriture : texte, formule (LaTeX), ou deviner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModeLecture {
+    Auto,
+    Texte,
+    Formule,
+}
+
+pub fn icone_outil(o: Outil) -> Icone {
+    match o {
+        Outil::Ecrire => Icone::Ecrire,
+        Outil::Formes => Icone::Formes,
+        Outil::Gomme => Icone::Gomme,
+        Outil::Selection => Icone::Selection,
+        Outil::Clavier => Icone::Clavier,
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outil {
     Ecrire,
@@ -131,6 +149,10 @@ pub struct Fanoratana {
     pub(crate) maj: crate::maj::Partage,
     maj_lancee: bool,
     pub(crate) largeur_vue: f32,
+    pub(crate) mode_lecture: ModeLecture,
+    pub(crate) tableau_taille: (usize, usize),
+    /// Téléchargement du modèle des formules : part faite (0..1), ou erreur.
+    pub(crate) modele_formules: std::sync::Arc<std::sync::Mutex<Option<Result<f32, String>>>>,
 }
 
 pub const PALETTE: [Couleur; 7] = [
@@ -165,7 +187,7 @@ impl Fanoratana {
             Coffre { racine }
         });
         let reveil = ctx.clone();
-        let lecteur = Some(Lecteur::demarrer(move || reveil.request_repaint()));
+        let lecteur = Some(Lecteur::demarrer(dossier.join("modeles").join("pix2text-mfr"), move || reveil.request_repaint()));
         let mut app = Fanoratana {
             plateforme,
             dossier,
@@ -205,6 +227,9 @@ impl Fanoratana {
             maj: Default::default(),
             maj_lancee: false,
             largeur_vue: 0.0,
+            mode_lecture: ModeLecture::Auto,
+            tableau_taille: (3, 3),
+            modele_formules: Default::default(),
         };
         // La dernière leçon, ou la première du coffre.
         let derniere = PathBuf::from(&app.reglages.derniere_lecon);
@@ -475,6 +500,7 @@ impl Fanoratana {
             encadre: fano_core::Encadre::Aucun,
             source: vec![],
             alternatives: vec![],
+            ..Default::default()
         }
     }
 
@@ -628,32 +654,24 @@ impl Fanoratana {
             self.tiroir = !self.tiroir;
         }
         ui.add_space(10.0);
-        for (icone, nom, outil) in [
-            (Icone::Ecrire, T::Ecrire, Outil::Ecrire),
-            (Icone::Formes, T::Formes, Outil::Formes),
-            (Icone::Clavier, T::Clavier, Outil::Clavier),
-            (Icone::Selection, T::Selection, Outil::Selection),
-            (Icone::Gomme, T::Gomme, Outil::Gomme),
-        ] {
-            if self.bouton_rail(ui, icone, nom, self.outil == outil).clicked() {
-                self.outil = outil;
-                if outil == Outil::Clavier && self.editeur.is_none() {
-                    self.nouveau_texte_clavier();
-                }
-            }
-        }
-        ui.add_space(10.0);
+        // Un seul bouton pour l'outil : il montre l'outil actif et ouvre la liste.
+        let icone = icone_outil(self.outil);
+        let outil = self.bouton_rail(ui, icone, T::Outil, true);
+        egui::Popup::menu(&outil).show(|ui| self.menu_outil(ui));
         // La couleur et l'épaisseur courantes, en une pastille.
-        let (cr, crep) = ui.allocate_exact_size(vec2(68.0, 50.0), Sense::click());
+        let (cr, crep) = ui.allocate_exact_size(vec2(68.0, 52.0), Sense::click());
         let crep = crep.on_hover_text(t(self.langue, T::Couleur));
         let rayon = 7.0 + self.epaisseur * 1.6;
         ui.painter()
             .circle_filled(cr.center(), rayon.min(18.0), crate::peinture::c32(self.couleur));
         if self.surligneur {
             ui.painter()
-                .circle_stroke(cr.center(), 20.0, Stroke::new(3.0, teinte::FILET));
+                .circle_stroke(cr.center(), 21.0, Stroke::new(3.0, teinte::FILET));
         }
         egui::Popup::menu(&crep).show(|ui| self.menu_couleur(ui));
+        let inserer = self.bouton_rail(ui, Icone::Inserer, T::Inserer, false);
+        egui::Popup::menu(&inserer).show(|ui| self.menu_inserer(ui));
+        ui.add_space(10.0);
         if self
             .bouton_rail(ui, Icone::AuPropre, T::AuPropre, false)
             .clicked()
@@ -679,8 +697,100 @@ impl Fanoratana {
         });
     }
 
+    fn menu_outil(&mut self, ui: &mut egui::Ui) {
+        ui.set_min_width(260.0);
+        let l = self.langue;
+        for (o, nom) in [
+            (Outil::Ecrire, T::Ecrire),
+            (Outil::Formes, T::Formes),
+            (Outil::Clavier, T::Clavier),
+            (Outil::Selection, T::Selection),
+            (Outil::Gomme, T::Gomme),
+        ] {
+            if crate::widgets::ligne(ui, Some(icone_outil(o)), t(l, nom), self.outil == o).clicked() {
+                self.outil = o;
+                ui.close();
+                if o == Outil::Clavier && self.editeur.is_none() {
+                    self.nouveau_texte_clavier();
+                }
+            }
+        }
+        ui.separator();
+        crate::widgets::section(ui, t(l, T::LireComme));
+        ui.horizontal(|ui| {
+            for (m, nom) in [
+                (ModeLecture::Auto, T::LireAuto),
+                (ModeLecture::Texte, T::Texte),
+                (ModeLecture::Formule, T::LireFormule),
+            ] {
+                ui.selectable_value(&mut self.mode_lecture, m, t(l, nom));
+            }
+        });
+    }
+
+    fn menu_inserer(&mut self, ui: &mut egui::Ui) {
+        ui.set_min_width(280.0);
+        let l = self.langue;
+        if crate::widgets::ligne(ui, Some(Icone::Clavier), t(l, T::InsererTexte), false).clicked() {
+            self.outil = Outil::Clavier;
+            self.nouveau_texte_clavier();
+            ui.close();
+        }
+        // Le tableau : taille choisie ici, puis posé sous ce qui est écrit.
+        ui.horizontal(|ui| {
+            ui.add_space(8.0);
+            icones::dessiner(
+                ui.painter(),
+                egui::Rect::from_center_size(ui.cursor().min + vec2(13.0, 22.0), vec2(26.0, 26.0)),
+                Icone::Tableau,
+                teinte::GRAPHITE,
+            );
+            ui.add_space(38.0);
+            ui.add(
+                egui::DragValue::new(&mut self.tableau_taille.0)
+                    .range(1..=20)
+                    .suffix(format!(" {}", t(l, T::Lignes))),
+            );
+            ui.label("×");
+            ui.add(
+                egui::DragValue::new(&mut self.tableau_taille.1)
+                    .range(1..=10)
+                    .suffix(format!(" {}", t(l, T::Colonnes))),
+            );
+        });
+        if crate::widgets::ligne(ui, None, t(l, T::InsererTableau), false).clicked() {
+            self.inserer_tableau();
+            ui.close();
+        }
+        if crate::widgets::ligne(ui, Some(Icone::Graphe), t(l, T::InsererCourbe), false).clicked() {
+            self.inserer_graphe(vec!["f(x)=x^2".into()]);
+            ui.close();
+        }
+        if crate::widgets::ligne(ui, Some(Icone::Image), t(l, T::InsererImage), false).clicked() {
+            self.plateforme.demander_image();
+            ui.close();
+        }
+        if crate::widgets::ligne(ui, Some(Icone::Page), t(l, T::AjouterPage), false).clicked() {
+            let page = self.page_vue;
+            self.memoriser();
+            if let Some(o) = &mut self.ouverte {
+                let fond = o.lecon.pages.get(page).map(|p| p.fond).unwrap_or_default();
+                o.lecon.pages.insert(
+                    page + 1,
+                    Page {
+                        elements: vec![],
+                        fond,
+                    },
+                );
+            }
+            self.modifie();
+            ui.close();
+        }
+    }
+
     fn menu_couleur(&mut self, ui: &mut egui::Ui) {
-        ui.set_min_width(220.0);
+        ui.set_min_width(260.0);
+        let l = self.langue;
         ui.horizontal_wrapped(|ui| {
             for c in PALETTE {
                 let (r, rep) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::click());
@@ -695,11 +805,11 @@ impl Fanoratana {
                 }
             }
         });
-        ui.add(egui::Slider::new(&mut self.epaisseur, 1.0..=8.0).text(t(self.langue, T::Epaisseur)));
-        ui.checkbox(&mut self.surligneur, t(self.langue, T::Surligneur));
-        ui.checkbox(&mut self.rempli, t(self.langue, T::Remplir));
+        ui.add(egui::Slider::new(&mut self.epaisseur, 1.0..=8.0).text(t(l, T::Epaisseur)));
+        crate::widgets::interrupteur(ui, &mut self.surligneur, t(l, T::Surligneur));
+        crate::widgets::interrupteur(ui, &mut self.rempli, t(l, T::Remplir));
         // Appliquer à la sélection.
-        if !self.selection.is_empty() && ui.button(t(self.langue, T::Valider)).clicked() {
+        if !self.selection.is_empty() && ui.button(t(l, T::AppliquerSelection)).clicked() {
             let (c, page, sel) = (self.couleur, self.page_sel, self.selection.clone());
             self.memoriser();
             if let Some(p) = self.pages().and_then(|p| p.get_mut(page)) {
@@ -708,6 +818,7 @@ impl Fanoratana {
                         Some(Element::Encre(t)) => t.couleur = c,
                         Some(Element::Texte(t)) => t.couleur = c,
                         Some(Element::Forme(f)) => f.couleur = c,
+                        Some(Element::Tableau(tb)) => tb.couleur = c,
                         _ => {}
                     }
                 }
@@ -717,53 +828,38 @@ impl Fanoratana {
     }
 
     fn menu_plus(&mut self, ui: &mut egui::Ui) {
-        ui.set_min_width(280.0);
-        if ui.button(t(self.langue, T::InsererImage)).clicked() {
-            self.plateforme.demander_image();
-        }
-        ui.separator();
-        if ui.button(t(self.langue, T::AjouterPage)).clicked() {
+        ui.set_min_width(300.0);
+        let l = self.langue;
+        ui.menu_button(t(l, T::Exporter), |ui| {
+            ui.set_min_width(280.0);
+            if crate::widgets::ligne(ui, Some(Icone::Exporter), t(l, T::ExporterPdf), false).clicked() {
+                self.exporter("pdf");
+                ui.close();
+            }
+            if crate::widgets::ligne(ui, Some(Icone::Image), t(l, T::ExporterPng), false).clicked() {
+                self.exporter("png");
+                ui.close();
+            }
+            if crate::widgets::ligne(ui, Some(Icone::Page), t(l, T::ExporterMd), false).clicked() {
+                self.exporter("md");
+                ui.close();
+            }
+        });
+        ui.menu_button(t(l, T::Fond), |ui| {
+            ui.set_min_width(220.0);
             let page = self.page_vue;
-            self.memoriser();
-            if let Some(o) = &mut self.ouverte {
-                let fond = o.lecon.pages.get(page).map(|p| p.fond).unwrap_or_default();
-                o.lecon.pages.insert(
-                    page + 1,
-                    Page {
-                        elements: vec![],
-                        fond,
-                    },
-                );
-            }
-            self.modifie();
-        }
-        let n = self.ouverte.as_ref().map_or(0, |o| o.lecon.pages.len());
-        if n > 1 && ui.button(t(self.langue, T::SupprimerPage)).clicked() {
-            let page = self.page_vue.min(n - 1);
-            self.memoriser();
-            if let Some(o) = &mut self.ouverte {
-                o.lecon.pages.remove(page);
-            }
-            self.modifie();
-        }
-        ui.label(egui::RichText::new(t(self.langue, T::Fond)).color(teinte::DOUX));
-        ui.horizontal_wrapped(|ui| {
+            let actuel = self
+                .ouverte
+                .as_ref()
+                .and_then(|o| o.lecon.pages.get(page))
+                .map(|p| p.fond);
             for (f, nom) in [
                 (fano_core::Fond::Blanc, T::FondBlanc),
                 (fano_core::Fond::Lignes, T::FondLignes),
                 (fano_core::Fond::Carreaux, T::FondCarreaux),
                 (fano_core::Fond::Points, T::FondPoints),
             ] {
-                let page = self.page_vue;
-                let actuel = self
-                    .ouverte
-                    .as_ref()
-                    .and_then(|o| o.lecon.pages.get(page))
-                    .map(|p| p.fond);
-                if ui
-                    .selectable_label(actuel == Some(f), t(self.langue, nom))
-                    .clicked()
-                {
+                if crate::widgets::ligne(ui, None, t(l, nom), actuel == Some(f)).clicked() {
                     self.memoriser();
                     if let Some(p) = self.pages().and_then(|p| p.get_mut(page)) {
                         p.fond = f;
@@ -772,49 +868,52 @@ impl Fanoratana {
                 }
             }
         });
-        ui.separator();
-        if ui.button(t(self.langue, T::ExporterPdf)).clicked() {
-            self.exporter("pdf");
-        }
-        if ui.button(t(self.langue, T::ExporterPng)).clicked() {
-            self.exporter("png");
-        }
-        if ui.button(t(self.langue, T::ExporterMd)).clicked() {
-            self.exporter("md");
-        }
-        ui.separator();
-        ui.label(egui::RichText::new(t(self.langue, T::Reglages)).color(teinte::DOUX));
-        let avant = self.reglages.clone();
-        ui.checkbox(&mut self.reglages.doigt_ecrit, t(self.langue, T::DoigtEcrit));
-        ui.checkbox(&mut self.reglages.au_propre_auto, t(self.langue, T::AuPropreAuto));
-        ui.add(
-            egui::Slider::new(&mut self.reglages.delai_ms, 400..=4000)
-                .suffix(" ms")
-                .text(t(self.langue, T::Delai)),
-        );
-        ui.horizontal(|ui| {
-            ui.label(t(self.langue, T::Langue));
-            if ui
-                .selectable_label(self.langue == Langue::Fr, "Français")
-                .clicked()
-            {
-                self.langue = Langue::Fr;
-                self.reglages.langue = "fr".into();
+        let n = self.ouverte.as_ref().map_or(0, |o| o.lecon.pages.len());
+        if n > 1 && crate::widgets::ligne(ui, Some(Icone::Page), t(l, T::SupprimerPage), false).clicked() {
+            let page = self.page_vue.min(n - 1);
+            self.memoriser();
+            if let Some(o) = &mut self.ouverte {
+                o.lecon.pages.remove(page);
             }
-            if ui
-                .selectable_label(self.langue == Langue::En, "English")
-                .clicked()
-            {
-                self.langue = Langue::En;
-                self.reglages.langue = "en".into();
+            self.modifie();
+            ui.close();
+        }
+        ui.menu_button(t(l, T::Reglages), |ui| {
+            ui.set_min_width(340.0);
+            let avant = self.reglages.clone();
+            crate::widgets::interrupteur(ui, &mut self.reglages.doigt_ecrit, t(l, T::DoigtEcrit));
+            crate::widgets::interrupteur(ui, &mut self.reglages.au_propre_auto, t(l, T::AuPropreAuto));
+            ui.add(
+                egui::Slider::new(&mut self.reglages.delai_ms, 400..=4000)
+                    .suffix(" ms")
+                    .text(t(l, T::Delai)),
+            );
+            crate::widgets::interrupteur(ui, &mut self.reglages.maj_auto, t(l, T::MajAuto));
+            self.reglage_modele_formules(ui);
+            ui.horizontal(|ui| {
+                ui.label(t(l, T::Langue));
+                if ui
+                    .selectable_label(self.langue == Langue::Fr, "Français")
+                    .clicked()
+                {
+                    self.langue = Langue::Fr;
+                    self.reglages.langue = "fr".into();
+                }
+                if ui
+                    .selectable_label(self.langue == Langue::En, "English")
+                    .clicked()
+                {
+                    self.langue = Langue::En;
+                    self.reglages.langue = "en".into();
+                }
+            });
+            if self.reglages != avant {
+                self.reglages.ecrire(&self.dossier);
             }
         });
-        ui.checkbox(&mut self.reglages.maj_auto, t(self.langue, T::MajAuto));
-        if ui.button(t(self.langue, T::ChercherMaj)).clicked() {
+        if crate::widgets::ligne(ui, Some(Icone::Reglages), t(l, T::ChercherMaj), false).clicked() {
             self.chercher_maj(&ui.ctx().clone(), true);
-        }
-        if self.reglages != avant {
-            self.reglages.ecrire(&self.dossier);
+            ui.close();
         }
         ui.separator();
         ui.label(
@@ -825,6 +924,117 @@ impl Fanoratana {
             .small()
             .color(teinte::DOUX),
         );
+    }
+
+    pub(crate) fn dossier_formules(&self) -> PathBuf {
+        self.dossier.join("modeles").join("pix2text-mfr")
+    }
+
+    /// Le modèle des formules : présent, en cours de téléchargement, ou un bouton pour le télécharger.
+    fn reglage_modele_formules(&mut self, ui: &mut egui::Ui) {
+        let l = self.langue;
+        let dossier = self.dossier_formules();
+        if fano_reco::formules::present(&dossier) {
+            ui.label(egui::RichText::new(t(l, T::ModelePresent)).color(teinte::DOUX));
+            return;
+        }
+        let etat = self.modele_formules.lock().unwrap().clone();
+        match etat {
+            Some(Ok(p)) if p < 1.0 => {
+                ui.add(egui::ProgressBar::new(p).text(format!("{:.0} %", p * 100.0)));
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+            }
+            autre => {
+                if let Some(Err(e)) = autre {
+                    ui.label(egui::RichText::new(format!("{} {e}", t(l, T::Erreur))).color(teinte::DANGER));
+                }
+                if ui.button(t(l, T::TelechargerModele)).clicked() {
+                    let etat = self.modele_formules.clone();
+                    *etat.lock().unwrap() = Some(Ok(0.0));
+                    let ctx = ui.ctx().clone();
+                    std::thread::spawn(move || {
+                        let total: u64 = fano_reco::formules::FICHIERS.iter().map(|f| f.1).sum();
+                        let mut deja = 0u64;
+                        for (nom, taille, sha) in fano_reco::formules::FICHIERS {
+                            let dest = dossier.join(nom);
+                            if std::fs::metadata(&dest).is_ok_and(|m| m.len() == taille) {
+                                deja += taille;
+                                continue;
+                            }
+                            let e2 = etat.clone();
+                            let base = deja;
+                            let r = fano_maj::telecharger_fichier(&fano_reco::formules::url(nom), &dest, taille, sha, move |n| {
+                                *e2.lock().unwrap() = Some(Ok((base + n) as f32 / total as f32 * 0.999));
+                            });
+                            if let Err(e) = r {
+                                *etat.lock().unwrap() = Some(Err(e));
+                                ctx.request_repaint();
+                                return;
+                            }
+                            deja += taille;
+                        }
+                        *etat.lock().unwrap() = Some(Ok(1.0));
+                        ctx.request_repaint();
+                    });
+                }
+            }
+        }
+    }
+
+    /// Un tableau neuf, sous ce qui est déjà sur la page vue.
+    pub(crate) fn inserer_tableau(&mut self) {
+        let page = self.page_vue;
+        let Some(o) = &self.ouverte else { return };
+        let (pw, _) = o.lecon.format.taille();
+        let bas = self.bas_de_page(page);
+        let (l, c) = self.tableau_taille;
+        let tb = fano_core::Tableau::nouveau(fano_core::Point::new(72.0, bas + 20.0), l, c, pw - 72.0 - 40.0);
+        self.memoriser();
+        if let Some(p) = self.pages().and_then(|p| p.get_mut(page)) {
+            p.elements.push(Element::Tableau(tb));
+            self.selection = vec![p.elements.len() - 1];
+            self.page_sel = page;
+        }
+        self.modifie();
+    }
+
+    /// Une courbe façon GeoGebra, sous ce qui est déjà sur la page vue.
+    pub(crate) fn inserer_graphe(&mut self, definitions: Vec<String>) {
+        let page = self.page_vue;
+        let Some(o) = &self.ouverte else { return };
+        let (pw, _) = o.lecon.format.taille();
+        let bas = self.bas_de_page(page);
+        let (xmin, xmax, ymin, ymax) = fano_render::scene::bornes_auto(&definitions);
+        let w = (pw - 72.0 - 40.0).min(420.0);
+        let g = fano_core::Graphe {
+            rect: fano_core::Rect::from_min_size(fano_core::Point::new(72.0, bas + 20.0), w, w * 0.7),
+            definitions,
+            xmin,
+            xmax,
+            ymin,
+            ymax,
+        };
+        self.memoriser();
+        if let Some(p) = self.pages().and_then(|p| p.get_mut(page)) {
+            p.elements.push(Element::Graphe(g));
+            let i = p.elements.len() - 1;
+            self.page_sel = page;
+            self.selection = vec![i];
+        }
+        self.modifie();
+    }
+
+    pub(crate) fn bas_de_page(&self, page: usize) -> f32 {
+        self.ouverte
+            .as_ref()
+            .and_then(|o| o.lecon.pages.get(page))
+            .map(|p| {
+                p.elements
+                    .iter()
+                    .map(|e| fano_render::scene::bbox(e).max.y)
+                    .fold(48.0_f32, f32::max)
+            })
+            .unwrap_or(48.0)
     }
 
     fn exporter(&mut self, quoi: &str) {

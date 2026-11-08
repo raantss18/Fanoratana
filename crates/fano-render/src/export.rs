@@ -235,6 +235,7 @@ mod tests {
             encadre: fano_core::Encadre::Definition,
             source: vec![],
             alternatives: vec![],
+            ..Default::default()
         }));
         l.pages[0].elements.push(Element::Forme(Forme {
             kind: FormeKind::Triangle,

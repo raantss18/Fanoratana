@@ -9,6 +9,7 @@
 //!
 //! La lecture tourne sur un fil à part ([`Lecteur`]) : l'écriture n'attend jamais.
 
+pub mod formules;
 pub mod raster;
 
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -142,21 +143,42 @@ impl Modele {
 }
 
 /// Une demande de lecture : un identifiant choisi par l'appelant, et l'image.
-pub struct Demande {
-    pub id: u64,
-    pub gris: Vec<u8>,
-    pub largeur: usize,
+/// Comment lire : texte, formule (LaTeX), ou deviner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    Auto,
+    Texte,
+    Formule,
 }
 
-/// Le fil de lecture : on lui envoie des images, il rend les lectures dans l'ordre.
+/// Une demande de lecture : un identifiant choisi par l'appelant, l'encre, et le mode.
+pub struct Demande {
+    pub id: u64,
+    pub traits: Vec<fano_core::Trait>,
+    pub mode: Mode,
+}
+
+/// Une lecture de texte ressemble-t-elle à une formule ? (signes d'opération, peu de vrais mots)
+pub fn ressemble_formule(texte: &str) -> bool {
+    const MOTS_MATHS: [&str; 8] = ["sin", "cos", "tan", "lim", "exp", "log", "ln", "sqrt"];
+    let signes = texte.chars().filter(|c| "=+^<>×÷≤≥∫∑√".contains(*c)).count();
+    let mots = texte
+        .split(|c: char| !c.is_alphabetic())
+        .filter(|m| m.chars().count() >= 3 && !MOTS_MATHS.contains(&m.to_lowercase().as_str()))
+        .count();
+    signes >= 1 && mots <= 1
+}
+
+/// Le fil de lecture : on lui envoie de l'encre, il rend les lectures dans l'ordre.
 pub struct Lecteur {
     envoi: Sender<Demande>,
     pub resultats: Receiver<(u64, Result<Lecture, String>)>,
 }
 
 impl Lecteur {
-    /// Démarre le fil ; `reveil` est appelé après chaque lecture (pour redessiner l'écran).
-    pub fn demarrer(reveil: impl Fn() + Send + 'static) -> Lecteur {
+    /// Démarre le fil ; `formules` : le dossier du modèle des formules (chargé à la première formule) ;
+    /// `reveil` est appelé après chaque lecture (pour redessiner l'écran).
+    pub fn demarrer(formules: std::path::PathBuf, reveil: impl Fn() + Send + 'static) -> Lecteur {
         let (envoi, demandes) = channel::<Demande>();
         let (rendre, resultats) = channel();
         std::thread::Builder::new()
@@ -171,8 +193,9 @@ impl Lecteur {
                 };
                 // Prépare la largeur la plus courante pendant qu'on écrit.
                 let _ = modele.plan(LARGEURS[1]);
+                let mut mfr: Option<formules::ModeleFormules> = None;
                 for d in demandes {
-                    let r = modele.lire_image(&d.gris, d.largeur).map_err(|e| e.to_string());
+                    let r = lire_demande(&mut modele, &mut mfr, &formules, &d);
                     if rendre.send((d.id, r)).is_err() {
                         break;
                     }
@@ -183,11 +206,52 @@ impl Lecteur {
         Lecteur { envoi, resultats }
     }
 
-    pub fn lire(&self, id: u64, traits: &[fano_core::Trait]) {
-        if let Some((gris, largeur)) = rasteriser(traits) {
-            let _ = self.envoi.send(Demande { id, gris, largeur });
+    pub fn lire(&self, id: u64, traits: &[fano_core::Trait], mode: Mode) {
+        let _ = self.envoi.send(Demande { id, traits: traits.to_vec(), mode });
+    }
+}
+
+/// Erreur rendue quand une formule est demandée sans le modèle.
+pub const SANS_MODELE: &str = "modele-formules-absent";
+
+fn lire_demande(
+    modele: &mut Modele,
+    mfr: &mut Option<formules::ModeleFormules>,
+    dossier: &std::path::Path,
+    d: &Demande,
+) -> Result<Lecture, String> {
+    let texte = if d.mode == Mode::Formule {
+        None
+    } else {
+        let (gris, largeur) = rasteriser(&d.traits).ok_or("rien à lire")?;
+        Some(modele.lire_image(&gris, largeur).map_err(|e| e.to_string())?)
+    };
+    let essayer_formule = match (&texte, d.mode) {
+        (_, Mode::Formule) => true,
+        (Some(t), Mode::Auto) => ressemble_formule(&t.texte),
+        _ => false,
+    };
+    if essayer_formule {
+        if mfr.is_none() && formules::present(dossier) {
+            *mfr = formules::ModeleFormules::charger(dossier).map_err(|e| log::error!("formules : {e}")).ok();
+        }
+        match mfr.as_ref() {
+            Some(m) => {
+                let latex = m.lire(&d.traits).map_err(|e| e.to_string())?;
+                if !latex.is_empty() {
+                    return Ok(Lecture {
+                        texte: format!("${latex}$"),
+                        // Le modèle des formules ne donne pas de confiance : la lecture au tracé la donne.
+                        confiance: texte.as_ref().map_or(1.0, |t| t.confiance.max(0.7)),
+                        alternatives: texte.iter().map(|t| t.texte.clone()).collect(),
+                    });
+                }
+            }
+            None if d.mode == Mode::Formule => return Err(SANS_MODELE.into()),
+            None => {}
         }
     }
+    texte.ok_or_else(|| "rien à lire".into())
 }
 
 #[cfg(test)]
@@ -211,5 +275,20 @@ mod tests {
         let gris = vec![255u8; HAUTEUR as usize * 200];
         let l = m.lire_image(&gris, 200).unwrap();
         assert!(l.texte.is_empty(), "lu {:?} ({})", l.texte, l.confiance);
+    }
+}
+
+#[cfg(test)]
+mod tests_formule {
+    use super::ressemble_formule;
+
+    #[test]
+    fn texte_ou_formule() {
+        assert!(ressemble_formule("x+1=5"));
+        assert!(ressemble_formule("f(x)=2x+3"));
+        assert!(ressemble_formule("sin(x)=0"));
+        assert!(!ressemble_formule("Les fractions égales"));
+        assert!(!ressemble_formule("En 1789, les États généraux = Versailles"));
+        assert!(!ressemble_formule("1789"));
     }
 }

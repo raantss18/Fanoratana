@@ -203,7 +203,10 @@ impl Fanoratana {
                             .hint_text(t(self.langue, T::Nom))
                             .desired_width(f32::INFINITY),
                     );
-                    r.request_focus();
+                    // Le focus une seule fois : le redemander à chaque image fait clignoter le clavier d'Android.
+                    if !r.has_focus() && ui.memory(|m| m.focused().is_none()) {
+                        r.request_focus();
+                    }
                     if *genre == Genre::Lecon {
                         ui.horizontal(|ui| {
                             ui.selectable_value(diapo, false, "A4");
@@ -214,7 +217,10 @@ impl Fanoratana {
                 }
                 Dialogue::Renommer { nom, .. } => {
                     let r = ui.add(egui::TextEdit::singleline(nom).desired_width(f32::INFINITY));
-                    r.request_focus();
+                    // Le focus une seule fois : le redemander à chaque image fait clignoter le clavier d'Android.
+                    if !r.has_focus() && ui.memory(|m| m.focused().is_none()) {
+                        r.request_focus();
+                    }
                     faire = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                 }
                 Dialogue::Supprimer { nom, .. } => {

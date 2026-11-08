@@ -12,5 +12,6 @@ pub mod page;
 pub use coffre::{Coffre, Entree, Erreur};
 pub use geom::{Point, Rect, Vec2};
 pub use page::{
-    Couleur, Element, Encadre, Fond, Format, Forme, FormeKind, ImageEl, Lecon, Page, PointEncre, Texte, Trait,
+    Alignement, Couleur, Element, Encadre, Fond, Format, Forme, FormeKind, Graphe, ImageEl, Lecon, Liste,
+    Page, PointEncre, Tableau, Texte, Trait,
 };

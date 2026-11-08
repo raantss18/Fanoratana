@@ -11,6 +11,12 @@ use crate::geom::{Point, Rect};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Couleur(pub [u8; 4]);
 
+impl Default for Couleur {
+    fn default() -> Self {
+        Couleur::NOIR
+    }
+}
+
 impl Couleur {
     pub const NOIR: Couleur = Couleur([0x00, 0x00, 0x00, 0xff]);
     pub const ENCRE: Couleur = Couleur([0x1f, 0x2a, 0x44, 0xff]);
@@ -81,7 +87,7 @@ impl Trait {
 
 /// Un texte au propre (écriture reconnue, ou tapée). `contenu` peut mêler texte et formules entre
 /// `$…$` (sous-ensemble de LaTeX : fractions, puissances, indices, racines, lettres grecques).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Texte {
     /// Coin haut-gauche de la première ligne.
     pub pos: Point,
@@ -98,12 +104,130 @@ pub struct Texte {
     /// Un encadré de cours (toutes matières).
     #[serde(default)]
     pub encadre: Encadre,
+    /// Liste à puces ou numérotée (une ligne = un élément).
+    #[serde(default)]
+    pub liste: Liste,
+    #[serde(default)]
+    pub alignement: Alignement,
+    #[serde(default)]
+    pub souligne: bool,
+    /// Surligné (fond jaune pâle à l'écran, gris à l'impression monochrome).
+    #[serde(default)]
+    pub surligne: bool,
     /// L'encre dont il vient.
     #[serde(default)]
     pub source: Vec<Trait>,
     /// Les autres lectures proposées, de la plus probable à la moins probable.
     #[serde(default)]
     pub alternatives: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Liste {
+    #[default]
+    Aucune,
+    Puces,
+    Numeros,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Alignement {
+    #[default]
+    Gauche,
+    Centre,
+    Droite,
+}
+
+/// Un tableau : colonnes et lignes de tailles libres, du texte (avec formules `$…$`) dans chaque case.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Tableau {
+    pub pos: Point,
+    pub largeurs: Vec<f32>,
+    pub hauteurs: Vec<f32>,
+    /// `cellules[ligne][colonne]`.
+    pub cellules: Vec<Vec<String>>,
+    /// La première ligne est un en-tête (fond gris, écriture appuyée).
+    #[serde(default)]
+    pub entete: bool,
+    pub couleur: Couleur,
+    pub taille: f32,
+}
+
+impl Tableau {
+    pub fn nouveau(pos: Point, lignes: usize, colonnes: usize, largeur: f32) -> Tableau {
+        let (l, c) = (lignes.max(1), colonnes.max(1));
+        Tableau {
+            pos,
+            largeurs: vec![largeur / c as f32; c],
+            hauteurs: vec![40.0; l],
+            cellules: vec![vec![String::new(); c]; l],
+            entete: true,
+            couleur: Couleur::NOIR,
+            taille: 20.0,
+        }
+    }
+    pub fn bbox(&self) -> Rect {
+        Rect::from_min_size(self.pos, self.largeurs.iter().sum(), self.hauteurs.iter().sum())
+    }
+    /// La case sous un point, `(ligne, colonne)`.
+    pub fn case(&self, p: Point) -> Option<(usize, usize)> {
+        if !self.bbox().contains(p) {
+            return None;
+        }
+        let mut y = self.pos.y;
+        let l = self.hauteurs.iter().position(|h| {
+            y += h;
+            p.y <= y
+        })?;
+        let mut x = self.pos.x;
+        let c = self.largeurs.iter().position(|w| {
+            x += w;
+            p.x <= x
+        })?;
+        Some((l, c))
+    }
+    /// Le rectangle d'une case.
+    pub fn rect_case(&self, l: usize, c: usize) -> Rect {
+        let x = self.pos.x + self.largeurs[..c].iter().sum::<f32>();
+        let y = self.pos.y + self.hauteurs[..l].iter().sum::<f32>();
+        Rect::from_min_size(Point::new(x, y), self.largeurs[c], self.hauteurs[l])
+    }
+    pub fn ajouter_ligne(&mut self) {
+        let h = self.hauteurs.last().copied().unwrap_or(40.0);
+        self.hauteurs.push(h);
+        self.cellules.push(vec![String::new(); self.largeurs.len()]);
+    }
+    pub fn ajouter_colonne(&mut self) {
+        let w = self.largeurs.last().copied().unwrap_or(120.0);
+        self.largeurs.push(w);
+        self.cellules.iter_mut().for_each(|l| l.push(String::new()));
+    }
+    pub fn retirer_ligne(&mut self) {
+        if self.hauteurs.len() > 1 {
+            self.hauteurs.pop();
+            self.cellules.pop();
+        }
+    }
+    pub fn retirer_colonne(&mut self) {
+        if self.largeurs.len() > 1 {
+            self.largeurs.pop();
+            self.cellules.iter_mut().for_each(|l| {
+                l.pop();
+            });
+        }
+    }
+}
+
+/// Une courbe façon GeoGebra : des fonctions `f(x)=…` et des points `A=(1,2)`, dans un repère.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Graphe {
+    pub rect: Rect,
+    /// Les définitions telles qu'écrites : `f(x)=x^2-1`, `A=(1,2)`.
+    pub definitions: Vec<String>,
+    pub xmin: f32,
+    pub xmax: f32,
+    pub ymin: f32,
+    pub ymax: f32,
 }
 
 /// Les encadrés d'un cours, valables pour toutes les matières.
@@ -209,6 +333,8 @@ pub enum Element {
     Texte(Texte),
     Forme(Forme),
     Image(ImageEl),
+    Tableau(Tableau),
+    Graphe(Graphe),
 }
 
 impl Element {
@@ -218,6 +344,8 @@ impl Element {
             Element::Encre(t) => t.bbox().expand(t.epaisseur),
             Element::Forme(f) => f.bbox().expand(f.epaisseur),
             Element::Image(i) => i.rect,
+            Element::Tableau(t) => t.bbox(),
+            Element::Graphe(g) => g.rect,
             Element::Texte(t) => {
                 let lignes = t.contenu.lines().count().max(1) as f32;
                 let plus_longue = t.contenu.lines().map(|l| l.chars().count()).max().unwrap_or(0) as f32;
@@ -234,6 +362,8 @@ impl Element {
             Element::Encre(t) => t.translate(d),
             Element::Forme(f) => f.translate(d),
             Element::Image(i) => i.rect = i.rect.translate(d),
+            Element::Tableau(t) => t.pos = t.pos + d,
+            Element::Graphe(g) => g.rect = g.rect.translate(d),
             Element::Texte(t) => {
                 t.pos = t.pos + d;
                 t.source.iter_mut().for_each(|s| s.translate(d));
@@ -346,6 +476,18 @@ impl Lecon {
                         md.push('\n');
                     }
                     Element::Image(im) => md.push_str(&format!("\n![]({})\n", im.fichier)),
+                    Element::Tableau(t) => {
+                        md.push('\n');
+                        for (i, l) in t.cellules.iter().enumerate() {
+                            md.push_str(&format!("| {} |\n", l.join(" | ")));
+                            if i == 0 {
+                                md.push_str(&format!("|{}\n", " --- |".repeat(l.len())));
+                            }
+                        }
+                    }
+                    Element::Graphe(g) => {
+                        md.push_str(&format!("\n```geogebra\n{}\n```\n", g.definitions.join("\n")));
+                    }
                     _ => {}
                 }
             }
@@ -388,12 +530,34 @@ mod tests {
             largeur: 0.0,
             titre: 0,
             encadre: Encadre::Aucun,
+            liste: Liste::Aucune,
+            alignement: Alignement::Gauche,
+            souligne: false,
+            surligne: false,
             source: vec![],
             alternatives: vec![],
         }));
         let s = l.vers_json();
         assert_eq!(Lecon::depuis_json(&s).unwrap(), l);
         assert!(l.markdown().contains("Une fraction $\\frac{a}{b}$"));
+    }
+
+    #[test]
+    fn tableau_cases_et_markdown() {
+        let mut t = Tableau::nouveau(Point::new(10.0, 10.0), 2, 3, 300.0);
+        assert_eq!(t.case(Point::new(15.0, 15.0)), Some((0, 0)));
+        assert_eq!(t.case(Point::new(305.0, 85.0)), Some((1, 2)));
+        assert_eq!(t.case(Point::new(400.0, 15.0)), None);
+        t.ajouter_ligne();
+        t.ajouter_colonne();
+        assert_eq!((t.cellules.len(), t.cellules[0].len()), (3, 4));
+        t.cellules[0][0] = "Date".into();
+        let mut l = Lecon::nouvelle("x", Format::A4);
+        l.pages[0].elements.push(Element::Tableau(t));
+        assert!(
+            l.markdown()
+                .contains("| Date |  |  |  |\n| --- | --- | --- | --- |")
+        );
     }
 
     #[test]

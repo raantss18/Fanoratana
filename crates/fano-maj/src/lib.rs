@@ -138,6 +138,36 @@ pub fn telecharger(v: &Version, dossier: &Path, progres: impl Fn(f32)) -> Result
     Ok(dest)
 }
 
+/// Télécharge `url` dans `dest`, vérifie la taille et le SHA-256 (sinon le fichier est effacé).
+pub fn telecharger_fichier(url: &str, dest: &Path, taille: u64, sha256: &str, progres: impl Fn(u64)) -> Result<(), String> {
+    if let Some(d) = dest.parent() {
+        std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+    }
+    let mut rep = agent().get(url).call().map_err(|e| e.to_string())?;
+    let mut lecteur = rep.body_mut().with_config().limit(taille + 1024).reader();
+    let tmp = dest.with_extension("partiel");
+    let mut sortie = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+    let mut h = Sha256::new();
+    let mut buf = vec![0u8; 64 * 1024];
+    let mut lu = 0u64;
+    loop {
+        let n = lecteur.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        h.update(&buf[..n]);
+        std::io::Write::write_all(&mut sortie, &buf[..n]).map_err(|e| e.to_string())?;
+        lu += n as u64;
+        progres(lu);
+    }
+    let somme: String = h.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    if lu != taille || somme != sha256.to_lowercase() {
+        let _ = std::fs::remove_file(&tmp);
+        return Err("le fichier téléchargé ne correspond pas : refusé".into());
+    }
+    std::fs::rename(&tmp, dest).map_err(|e| e.to_string())
+}
+
 /// Linux : remplace le programme en cours par `nouveau` (pris en compte au prochain lancement).
 pub fn remplacer_programme(nouveau: &Path) -> Result<PathBuf, String> {
     let actuel = std::env::current_exe().map_err(|e| e.to_string())?;

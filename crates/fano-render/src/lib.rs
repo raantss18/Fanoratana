@@ -8,6 +8,7 @@
 //! - [`polices`] : Caveat, Noto Sans Math, Nunito, embarquées.
 
 pub mod export;
+pub mod expr;
 pub mod maths;
 pub mod polices;
 pub mod rough;

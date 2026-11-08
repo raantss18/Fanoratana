@@ -14,6 +14,7 @@ pub mod plateforme;
 pub mod reglages;
 pub mod textes;
 mod toile;
+mod widgets;
 
 pub use app::Fanoratana;
 pub use plateforme::{Plateforme, Pointeur};

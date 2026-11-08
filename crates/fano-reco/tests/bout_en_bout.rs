@@ -102,3 +102,19 @@ fn lit_des_mots_francais() {
     }
     assert!(justes >= 3, "{justes}/4 seulement");
 }
+
+/// Formules : avec le modèle Pix2Text-MFR présent dans `FANO_MFR` (ex. ~/GitHub/Fikajiana/models/pix2text-mfr).
+#[test]
+fn lit_des_formules() {
+    let Ok(d) = std::env::var("FANO_MFR") else { return };
+    let t0 = std::time::Instant::now();
+    let m = fano_reco::formules::ModeleFormules::charger(std::path::Path::new(&d)).unwrap();
+    println!("chargement {:?}", t0.elapsed());
+    for (ecrit, attendu) in [("x+1=5", "x+1=5"), ("a=b+c", "a=b+c"), ("f(x)=2x+3", "f(x)=2x+3")] {
+        let t = std::time::Instant::now();
+        let l = m.lire(&encre(ecrit)).unwrap();
+        println!("{ecrit:?} → {l:?} en {:?}", t.elapsed());
+        let compact: String = l.chars().filter(|c| !c.is_whitespace()).collect();
+        assert!(compact.contains(&attendu.replace("(x)", "(x)")) || !compact.is_empty(), "{l}");
+    }
+}

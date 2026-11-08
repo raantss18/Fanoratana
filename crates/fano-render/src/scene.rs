@@ -249,14 +249,24 @@ enum Bout {
 }
 
 /// Met en page un texte au propre ; rend les primitives et le rectangle occupé.
+/// Listes (une ligne = un élément), alignement, souligné et surligné compris.
 pub fn texte(t: &Texte) -> (Vec<Prim>, Rect) {
+    use fano_core::{Alignement, Liste};
     let taille = taille_titre(t);
     let p = polices();
     let interligne = taille * 1.3;
     let espace = p.largeur(" ", taille);
     let mut prims = Vec::new();
+    let mut fonds = Vec::new();
     let mut y = t.pos.y + taille * 0.95;
     let mut largeur_max: f32 = 0.0;
+    let retrait = if t.liste == Liste::Aucune {
+        0.0
+    } else {
+        taille * 1.2
+    };
+    let dispo = if t.largeur > 0.0 { t.largeur - retrait } else { 0.0 };
+    let mut numero = 0;
     for paragraphe in t.contenu.split('\n') {
         // Découpe en mots et formules.
         let mut bouts: Vec<Bout> = Vec::new();
@@ -272,19 +282,64 @@ pub fn texte(t: &Texte) -> (Vec<Prim>, Rect) {
                 );
             }
         }
+        if t.liste != Liste::Aucune && !paragraphe.trim().is_empty() {
+            numero += 1;
+            let marque = if t.liste == Liste::Puces {
+                "•".to_owned()
+            } else {
+                format!("{numero}.")
+            };
+            prims.extend(texte_ligne(&marque, Point::new(t.pos.x, y), taille, t.couleur));
+        }
         let mut x = 0.0;
         let mut haut_ligne: f32 = 0.0;
         let mut bas_ligne: f32 = 0.0;
         let mut ligne: Vec<(f32, &Bout)> = Vec::new();
-        let vider = |ligne: &mut Vec<(f32, &Bout)>, y: f32, prims: &mut Vec<Prim>| {
+        let vider = |ligne: &mut Vec<(f32, &Bout)>,
+                     y: f32,
+                     lw: f32,
+                     prims: &mut Vec<Prim>,
+                     fonds: &mut Vec<Prim>| {
+            let decal = retrait
+                + match t.alignement {
+                    Alignement::Gauche => 0.0,
+                    Alignement::Centre => ((dispo - lw) / 2.0).max(0.0),
+                    Alignement::Droite => (dispo - lw).max(0.0),
+                };
+            let x0 = t.pos.x + decal;
+            if lw > 0.0 && t.surligne {
+                fonds.push(Prim::Remplir {
+                    pts: vec![
+                        Point::new(x0 - 3.0, y - taille * 0.78),
+                        Point::new(x0 + lw + 3.0, y - taille * 0.74),
+                        Point::new(x0 + lw + 3.0, y + taille * 0.24),
+                        Point::new(x0 - 3.0, y + taille * 0.22),
+                    ],
+                    couleur: Couleur([0xff, 0xe0, 0x66, 0x99]),
+                });
+            }
+            if lw > 0.0 && t.souligne {
+                let mut alea = Alea::new((y as u32).wrapping_add(lw as u32));
+                if let Some(pts) = rough::segment(
+                    Point::new(x0, y + taille * 0.16),
+                    Point::new(x0 + lw, y + taille * 0.17),
+                    &mut alea,
+                    0.6,
+                )
+                .into_iter()
+                .next()
+                {
+                    prims.push(Prim::Trace {
+                        pts,
+                        epaisseur: (taille * 0.06).max(1.0),
+                        couleur: t.couleur,
+                    });
+                }
+            }
             for (bx, b) in ligne.drain(..) {
                 match b {
-                    Bout::Mot(m) => {
-                        prims.extend(texte_ligne(m, Point::new(t.pos.x + bx, y), taille, t.couleur))
-                    }
-                    Bout::Formule(boite) => {
-                        prims.extend(formule(boite, Point::new(t.pos.x + bx, y), t.couleur))
-                    }
+                    Bout::Mot(m) => prims.extend(texte_ligne(m, Point::new(x0 + bx, y), taille, t.couleur)),
+                    Bout::Formule(boite) => prims.extend(formule(boite, Point::new(x0 + bx, y), t.couleur)),
                 }
             }
         };
@@ -293,10 +348,10 @@ pub fn texte(t: &Texte) -> (Vec<Prim>, Rect) {
                 Bout::Mot(m) => (p.largeur(m, taille), taille * 0.75, taille * 0.25),
                 Bout::Formule(f) => (f.largeur, f.haut, f.bas),
             };
-            if t.largeur > 0.0 && x > 0.0 && x + w > t.largeur {
+            if dispo > 0.0 && x > 0.0 && x + w > dispo {
                 y += haut_ligne.max(taille * 0.75) - taille * 0.75;
-                vider(&mut ligne, y, &mut prims);
-                largeur_max = largeur_max.max(x - espace);
+                vider(&mut ligne, y, x - espace, &mut prims, &mut fonds);
+                largeur_max = largeur_max.max(x - espace + retrait);
                 y += interligne + (bas_ligne - taille * 0.25).max(0.0);
                 x = 0.0;
                 haut_ligne = 0.0;
@@ -308,10 +363,15 @@ pub fn texte(t: &Texte) -> (Vec<Prim>, Rect) {
             bas_ligne = bas_ligne.max(d);
         }
         y += haut_ligne.max(taille * 0.75) - taille * 0.75;
-        vider(&mut ligne, y, &mut prims);
-        largeur_max = largeur_max.max(x - espace);
+        vider(&mut ligne, y, (x - espace).max(0.0), &mut prims, &mut fonds);
+        largeur_max = largeur_max.max(x - espace + retrait);
         y += interligne + (bas_ligne - taille * 0.25).max(0.0);
     }
+    if t.alignement != fano_core::Alignement::Gauche && dispo > 0.0 {
+        largeur_max = largeur_max.max(dispo + retrait);
+    }
+    fonds.append(&mut prims);
+    let mut prims = fonds;
     if t.titre == 1 && largeur_max > 0.0 {
         // Le titre de leçon est souligné à la main, deux fois.
         let yb = t.pos.y + taille * 1.2;
@@ -461,6 +521,8 @@ pub fn element(el: &Element) -> Vec<Prim> {
             fichier: i.fichier.clone(),
             rect: i.rect,
         }],
+        Element::Tableau(t) => tableau(t),
+        Element::Graphe(g) => graphe(g),
     }
 }
 
@@ -493,7 +555,47 @@ mod tests {
             encadre: fano_core::Encadre::Aucun,
             source: vec![],
             alternatives: vec![],
+            ..Default::default()
         }
+    }
+
+    #[test]
+    fn liste_et_graphe() {
+        let mut tx = t("un\ndeux", 0.0);
+        tx.liste = fano_core::Liste::Numeros;
+        let (prims, _) = texte(&tx);
+        let tout: String = prims
+            .iter()
+            .filter_map(|p| {
+                if let Prim::Texte { texte, .. } = p {
+                    Some(texte.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(tout, "1.un2.deux");
+        let defs = vec!["f(x)=x^2".to_owned(), "A=(1;1)".to_owned()];
+        let (x0, x1, y0, y1) = bornes_auto(&defs);
+        assert!(
+            x0 <= -5.0 && x1 >= 5.0 && y0 < 0.0 && y1 >= 20.0,
+            "{x0} {x1} {y0} {y1}"
+        );
+        let g = fano_core::Graphe {
+            rect: Rect::from_min_size(Point::new(0.0, 0.0), 300.0, 200.0),
+            definitions: defs,
+            xmin: x0,
+            xmax: x1,
+            ymin: y0,
+            ymax: y1,
+        };
+        let prims = graphe(&g);
+        assert!(
+            prims
+                .iter()
+                .any(|p| matches!(p, Prim::Trace { pts, .. } if pts.len() > 100)),
+            "la parabole est tracée"
+        );
     }
 
     #[test]
@@ -519,4 +621,312 @@ mod tests {
             .collect();
         assert_eq!(tout, "Soitx2uncarré");
     }
+}
+
+/// Un tableau : grille au trait fait main, en-tête grisé, texte au propre dans chaque case.
+pub fn tableau(t: &fano_core::Tableau) -> Vec<Prim> {
+    let mut v = Vec::new();
+    let b = t.bbox();
+    if t.entete && !t.hauteurs.is_empty() {
+        let h = t.hauteurs[0];
+        v.push(Prim::Remplir {
+            pts: vec![
+                b.min,
+                Point::new(b.max.x, b.min.y),
+                Point::new(b.max.x, b.min.y + h),
+                Point::new(b.min.x, b.min.y + h),
+            ],
+            couleur: Couleur([0, 0, 0, 0x12]),
+        });
+    }
+    let mut alea = Alea::new((t.largeurs.len() * 31 + t.hauteurs.len()) as u32);
+    let mut y = t.pos.y;
+    for i in 0..=t.hauteurs.len() {
+        if let Some(pts) = rough::segment(Point::new(b.min.x, y), Point::new(b.max.x, y), &mut alea, 0.5)
+            .into_iter()
+            .next()
+        {
+            v.push(Prim::Trace {
+                pts,
+                epaisseur: if i == 0 || i == t.hauteurs.len() { 1.6 } else { 1.1 },
+                couleur: t.couleur,
+            });
+        }
+        y += t.hauteurs.get(i).copied().unwrap_or(0.0);
+    }
+    let mut x = t.pos.x;
+    for j in 0..=t.largeurs.len() {
+        if let Some(pts) = rough::segment(Point::new(x, b.min.y), Point::new(x, b.max.y), &mut alea, 0.5)
+            .into_iter()
+            .next()
+        {
+            v.push(Prim::Trace {
+                pts,
+                epaisseur: if j == 0 || j == t.largeurs.len() { 1.6 } else { 1.1 },
+                couleur: t.couleur,
+            });
+        }
+        x += t.largeurs.get(j).copied().unwrap_or(0.0);
+    }
+    for (l, ligne) in t.cellules.iter().enumerate() {
+        for (c, contenu) in ligne.iter().enumerate() {
+            if contenu.is_empty() || c >= t.largeurs.len() || l >= t.hauteurs.len() {
+                continue;
+            }
+            let r = t.rect_case(l, c);
+            let taille = t.taille.min(r.height() * 0.62);
+            let tx = Texte {
+                pos: Point::new(r.min.x + 6.0, r.min.y + (r.height() - taille * 1.25) / 2.0),
+                contenu: contenu.clone(),
+                taille,
+                couleur: t.couleur,
+                largeur: r.width() - 12.0,
+                ..Default::default()
+            };
+            v.extend(texte(&tx).0);
+        }
+    }
+    v
+}
+
+/// Un repère façon GeoGebra : grille, axes gradués, courbes et points.
+pub fn graphe(g: &fano_core::Graphe) -> Vec<Prim> {
+    use crate::expr::{Definition, definition, evaluer};
+    let r = g.rect;
+    let (dx, dy) = ((g.xmax - g.xmin).max(1e-3), (g.ymax - g.ymin).max(1e-3));
+    let ecran = |x: f64, y: f64| {
+        Point::new(
+            r.min.x + (x as f32 - g.xmin) / dx * r.width(),
+            r.max.y - (y as f32 - g.ymin) / dy * r.height(),
+        )
+    };
+    let mut v = vec![Prim::Remplir {
+        pts: vec![
+            r.min,
+            Point::new(r.max.x, r.min.y),
+            r.max,
+            Point::new(r.min.x, r.max.y),
+        ],
+        couleur: Couleur([0xff, 0xff, 0xff, 0xff]),
+    }];
+    let pas = |etendue: f32| {
+        let brut = etendue / 8.0;
+        let p10 = 10f32.powf(brut.log10().floor());
+        [1.0, 2.0, 5.0, 10.0]
+            .into_iter()
+            .map(|k| k * p10)
+            .find(|s| *s >= brut)
+            .unwrap_or(p10 * 10.0)
+    };
+    let (px, py) = (pas(dx), pas(dy));
+    let grille = Couleur([0, 0, 0, 0x18]);
+    let mut x = (g.xmin / px).ceil() * px;
+    while x <= g.xmax + 1e-4 {
+        v.push(Prim::Trace {
+            pts: vec![ecran(x as f64, g.ymin as f64), ecran(x as f64, g.ymax as f64)],
+            epaisseur: 0.5,
+            couleur: grille,
+        });
+        if x.abs() > 1e-4 && (0.0..=1.0).contains(&((0.0 - g.ymin) / dy)) {
+            let q = ecran(x as f64, 0.0);
+            v.extend(texte_ligne(
+                &format_nombre(x),
+                Point::new(q.x - 4.0, q.y + 14.0),
+                12.0,
+                Couleur([0x5c, 0x5c, 0x5c, 0xff]),
+            ));
+        }
+        x += px;
+    }
+    let mut y = (g.ymin / py).ceil() * py;
+    while y <= g.ymax + 1e-4 {
+        v.push(Prim::Trace {
+            pts: vec![ecran(g.xmin as f64, y as f64), ecran(g.xmax as f64, y as f64)],
+            epaisseur: 0.5,
+            couleur: grille,
+        });
+        if y.abs() > 1e-4 && (0.0..=1.0).contains(&((0.0 - g.xmin) / dx)) {
+            let q = ecran(0.0, y as f64);
+            v.extend(texte_ligne(
+                &format_nombre(y),
+                Point::new(q.x + 4.0, q.y + 4.0),
+                12.0,
+                Couleur([0x5c, 0x5c, 0x5c, 0xff]),
+            ));
+        }
+        y += py;
+    }
+    // Axes avec flèches.
+    if g.ymin <= 0.0 && g.ymax >= 0.0 {
+        let (a, b) = (ecran(g.xmin as f64, 0.0), ecran(g.xmax as f64, 0.0));
+        v.push(Prim::Trace {
+            pts: vec![a, b],
+            epaisseur: 1.2,
+            couleur: Couleur::NOIR,
+        });
+        v.extend(rough::pointe(a, b, 8.0).map(|pts| Prim::Trace {
+            pts,
+            epaisseur: 1.2,
+            couleur: Couleur::NOIR,
+        }));
+    }
+    if g.xmin <= 0.0 && g.xmax >= 0.0 {
+        let (a, b) = (ecran(0.0, g.ymin as f64), ecran(0.0, g.ymax as f64));
+        v.push(Prim::Trace {
+            pts: vec![a, b],
+            epaisseur: 1.2,
+            couleur: Couleur::NOIR,
+        });
+        v.extend(rough::pointe(a, b, 8.0).map(|pts| Prim::Trace {
+            pts,
+            epaisseur: 1.2,
+            couleur: Couleur::NOIR,
+        }));
+    }
+    let couleurs = [
+        Couleur::NOIR,
+        Couleur::BLEU,
+        Couleur::ROUGE,
+        Couleur::VERT,
+        Couleur::VIOLET,
+    ];
+    let mut k = 0;
+    for d in &g.definitions {
+        match definition(d) {
+            Some(Definition::Fonction { nom, expr }) => {
+                let c = couleurs[k % couleurs.len()];
+                k += 1;
+                let n = 400;
+                let mut morceau: Vec<Point> = Vec::new();
+                let mut dernier: Option<(f64, f64)> = None;
+                let (bas, haut) = (g.ymin as f64, g.ymax as f64);
+                let dedans = |y: f64| y.is_finite() && y >= bas && y <= haut;
+                for i in 0..=n {
+                    let xv = g.xmin as f64 + (dx as f64) * i as f64 / n as f64;
+                    let yv = evaluer(&expr, xv);
+                    // Découpe exacte au bord du cadre : le point où la courbe sort (ou entre).
+                    if let Some((x0, y0)) = dernier {
+                        let saut = (yv - y0).abs() > dy as f64 * 2.0;
+                        if !saut && y0.is_finite() && yv.is_finite() && dedans(y0) != dedans(yv) {
+                            let bord = if yv > haut || y0 > haut { haut } else { bas };
+                            let t = (bord - y0) / (yv - y0);
+                            morceau.push(ecran(x0 + (xv - x0) * t, bord));
+                        }
+                        if !dedans(yv) || saut {
+                            if morceau.len() > 1 {
+                                v.push(Prim::Trace {
+                                    pts: std::mem::take(&mut morceau),
+                                    epaisseur: 2.0,
+                                    couleur: c,
+                                });
+                            }
+                            morceau.clear();
+                        }
+                    }
+                    if dedans(yv) {
+                        morceau.push(ecran(xv, yv));
+                    }
+                    dernier = Some((xv, yv));
+                }
+                if morceau.len() > 1 {
+                    v.push(Prim::Trace {
+                        pts: morceau,
+                        epaisseur: 2.0,
+                        couleur: c,
+                    });
+                }
+                // Le nom de la courbe, près du bord droit, là où elle est visible.
+                let xe = g.xmax as f64 - dx as f64 * 0.12;
+                let ye = evaluer(&expr, xe);
+                if ye.is_finite() && ye > g.ymin as f64 && ye < g.ymax as f64 {
+                    let q = ecran(xe, ye);
+                    let etiquette = if nom == "y" {
+                        String::new()
+                    } else {
+                        format!("𝒞{nom}").replace('𝒞', "C")
+                    };
+                    v.extend(texte_ligne(&etiquette, Point::new(q.x + 4.0, q.y - 6.0), 16.0, c));
+                }
+            }
+            Some(Definition::Point { nom, x, y }) => {
+                let q = ecran(x, y);
+                let pts = (0..16)
+                    .map(|i| {
+                        let a = i as f32 / 16.0 * std::f32::consts::TAU;
+                        Point::new(q.x + 3.5 * a.cos(), q.y + 3.5 * a.sin())
+                    })
+                    .collect();
+                v.push(Prim::Remplir {
+                    pts,
+                    couleur: Couleur::NOIR,
+                });
+                v.extend(texte_ligne(
+                    &nom,
+                    Point::new(q.x + 6.0, q.y - 6.0),
+                    16.0,
+                    Couleur::NOIR,
+                ));
+            }
+            None => {}
+        }
+    }
+    v.push(Prim::Trace {
+        pts: vec![
+            r.min,
+            Point::new(r.max.x, r.min.y),
+            r.max,
+            Point::new(r.min.x, r.max.y),
+            r.min,
+        ],
+        epaisseur: 0.8,
+        couleur: Couleur([0, 0, 0, 0x40]),
+    });
+    v
+}
+
+fn format_nombre(x: f32) -> String {
+    let s = format!("{x:.2}");
+    s.trim_end_matches('0').trim_end_matches('.').replace('.', ",")
+}
+
+/// Un repère adapté aux définitions : x de −5 à 5 (ou autour des points), y d'après les valeurs prises.
+pub fn bornes_auto(definitions: &[String]) -> (f32, f32, f32, f32) {
+    use crate::expr::{Definition, definition, evaluer};
+    let defs: Vec<Definition> = definitions.iter().filter_map(|d| definition(d)).collect();
+    let (mut xmin, mut xmax) = (-5.0f64, 5.0f64);
+    for d in &defs {
+        if let Definition::Point { x, .. } = d {
+            xmin = xmin.min(x - 1.0);
+            xmax = xmax.max(x + 1.0);
+        }
+    }
+    let mut ys: Vec<f64> = Vec::new();
+    for d in &defs {
+        match d {
+            Definition::Fonction { expr, .. } => {
+                for i in 0..=100 {
+                    let y = evaluer(expr, xmin + (xmax - xmin) * i as f64 / 100.0);
+                    if y.is_finite() {
+                        ys.push(y);
+                    }
+                }
+            }
+            Definition::Point { y, .. } => ys.push(*y),
+        }
+    }
+    ys.sort_by(f64::total_cmp);
+    let (mut ymin, mut ymax) = if ys.is_empty() {
+        (-5.0, 5.0)
+    } else {
+        (ys[ys.len() / 20], ys[ys.len() - 1 - ys.len() / 20])
+    };
+    ymin = ymin.min(-1.0);
+    ymax = ymax.max(1.0);
+    let marge = (ymax - ymin) * 0.1;
+    (
+        xmin as f32,
+        xmax as f32,
+        (ymin - marge).max(-50.0) as f32,
+        (ymax + marge).min(50.0) as f32,
+    )
 }

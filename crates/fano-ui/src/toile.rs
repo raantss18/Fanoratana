@@ -157,6 +157,7 @@ impl Fanoratana {
                 );
             }
         }
+        self.barre_contexte(ui, zone);
         // En-tête discret : où on est, et la page.
         if let Some(o) = &self.ouverte {
             let titre = format!("{} — {}", o.fil, o.lecon.titre);
@@ -177,6 +178,95 @@ impl Fanoratana {
                     teinte::DOUX,
                 );
             }
+        }
+    }
+
+    /// La barre contextuelle : seulement quand quelque chose est sélectionné.
+    fn barre_contexte(&mut self, ui: &mut egui::Ui, zone: egui::Rect) {
+        if self.selection.is_empty() || self.geste.is_some() {
+            return;
+        }
+        let l = self.langue;
+        let page = self.page_sel;
+        let seul = (self.selection.len() == 1).then(|| self.selection[0]);
+        let element = seul.and_then(|i| {
+            self.ouverte
+                .as_ref()?
+                .lecon
+                .pages
+                .get(page)?
+                .elements
+                .get(i)
+                .cloned()
+        });
+        let mut action: Option<Box<dyn FnOnce(&mut fano_core::Tableau)>> = None;
+        let mut supprimer = false;
+        let mut propre = false;
+        let mut modifier_graphe = None;
+        egui::Area::new("contexte".into())
+            .fixed_pos(zone.center_top() + vec2(-220.0, 34.0))
+            .order(egui::Order::Foreground)
+            .show(ui.ctx(), |ui| {
+                egui::Frame::window(ui.style())
+                    .inner_margin(egui::Margin::symmetric(10, 6))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            if let Some(Element::Tableau(tb)) = &element {
+                                if ui.button(t(l, T::AjouterLigne)).clicked() {
+                                    action = Some(Box::new(|t| t.ajouter_ligne()));
+                                }
+                                if ui.button(t(l, T::AjouterColonne)).clicked() {
+                                    action = Some(Box::new(|t| t.ajouter_colonne()));
+                                }
+                                if ui.button(t(l, T::RetirerLigne)).clicked() {
+                                    action = Some(Box::new(|t| t.retirer_ligne()));
+                                }
+                                if ui.button(t(l, T::RetirerColonne)).clicked() {
+                                    action = Some(Box::new(|t| t.retirer_colonne()));
+                                }
+                                let mut entete = tb.entete;
+                                if ui.toggle_value(&mut entete, t(l, T::EnTete)).clicked() {
+                                    action = Some(Box::new(move |t| t.entete = entete));
+                                }
+                            }
+                            if let Some(Element::Graphe(g)) = &element {
+                                if ui.button(t(l, T::Tracer)).clicked() {
+                                    modifier_graphe = Some(g.definitions.clone());
+                                }
+                            }
+                            if element.as_ref().is_none_or(|e| matches!(e, Element::Encre(_)))
+                                && ui.button(t(l, T::AuPropre)).clicked()
+                            {
+                                propre = true;
+                            }
+                            if ui
+                                .button(egui::RichText::new(t(l, T::Supprimer)).color(teinte::DANGER))
+                                .clicked()
+                            {
+                                supprimer = true;
+                            }
+                        });
+                    });
+            });
+        if let (Some(f), Some(i)) = (action, seul) {
+            self.memoriser();
+            if let Some(Element::Tableau(tb)) = self
+                .pages()
+                .and_then(|v| v.get_mut(page))
+                .and_then(|p| p.elements.get_mut(i))
+            {
+                f(tb);
+            }
+            self.modifie();
+        }
+        if let (Some(defs), Some(i)) = (modifier_graphe, seul) {
+            self.editeur = Some(Editeur::graphe(page, Some(i), &defs));
+        }
+        if propre {
+            self.au_propre_force();
+        }
+        if supprimer {
+            self.supprimer_selection();
         }
     }
 
@@ -455,45 +545,36 @@ impl Fanoratana {
         r.is_valid().then_some(r)
     }
 
+    /// L'éditeur de ce qui est sous le doigt (texte, case de tableau, courbe), s'il y a quelque chose.
+    fn editeur_sous(&self, page: usize, pt: Point) -> Option<Editeur> {
+        let p = self.ouverte.as_ref()?.lecon.pages.get(page)?;
+        p.elements.iter().enumerate().rev().find_map(|(i, e)| match e {
+            Element::Texte(t) if fano_render::scene::bbox(e).expand(6.0).contains(pt) => {
+                Some(Editeur::existant(page, i, t.clone()))
+            }
+            Element::Tableau(tb) => tb
+                .case(pt)
+                .map(|(l, c)| Editeur::case(page, i, l, c, tb.cellules[l][c].clone())),
+            Element::Graphe(g) if g.rect.contains(pt) => Some(Editeur::graphe(page, Some(i), &g.definitions)),
+            _ => None,
+        })
+    }
+
     fn editer_ou_creer(&mut self, page: usize, pt: Point) {
-        let touche = self
-            .ouverte
-            .as_ref()
-            .and_then(|o| o.lecon.pages.get(page))
-            .and_then(|p| {
-                p.elements.iter().enumerate().rev().find_map(|(i, e)| match e {
-                    Element::Texte(t) if fano_render::scene::bbox(e).expand(6.0).contains(pt) => {
-                        Some((i, t.clone()))
-                    }
-                    _ => None,
-                })
-            });
-        self.editeur = Some(match touche {
-            Some((i, t)) => Editeur::existant(page, i, t),
-            None => Editeur::nouveau(page, self.texte_vide(Point::new(pt.x, pt.y - 14.0))),
-        });
+        self.editeur = Some(
+            self.editeur_sous(page, pt)
+                .unwrap_or_else(|| Editeur::nouveau(page, self.texte_vide(Point::new(pt.x, pt.y - 14.0)))),
+        );
     }
 
     /// La fin d'un trait.
     fn finir_trait(&mut self, page: usize, trait_: Trait, duree: f64, surligneur: bool) {
         let pts: Vec<Point> = trait_.points.iter().map(PointEncre::pos).collect();
         let longueur = trait_.longueur();
-        // Un toucher bref sur un texte : l'ouvrir au clavier.
+        // Un toucher bref sur un texte, une case ou une courbe : l'ouvrir au clavier.
         if longueur * self.zoom < 4.0 && duree < 0.35 && !surligneur {
-            let texte = self
-                .ouverte
-                .as_ref()
-                .and_then(|o| o.lecon.pages.get(page))
-                .and_then(|p| {
-                    p.elements.iter().enumerate().rev().find_map(|(i, e)| match e {
-                        Element::Texte(t) if fano_render::scene::bbox(e).expand(4.0).contains(pts[0]) => {
-                            Some((i, t.clone()))
-                        }
-                        _ => None,
-                    })
-                });
-            if let Some((i, t)) = texte {
-                self.editeur = Some(Editeur::existant(page, i, t));
+            if let Some(ed) = self.editeur_sous(page, pts[0]) {
+                self.editeur = Some(ed);
                 return;
             }
         }
@@ -643,7 +724,12 @@ impl Fanoratana {
                 }
                 let id = self.prochain;
                 self.prochain += 1;
-                lecteur.lire(id, &ts);
+                let mode = match self.mode_lecture {
+                    crate::app::ModeLecture::Auto => fano_reco::Mode::Auto,
+                    crate::app::ModeLecture::Texte => fano_reco::Mode::Texte,
+                    crate::app::ModeLecture::Formule => fano_reco::Mode::Formule,
+                };
+                lecteur.lire(id, &ts, mode);
                 self.lectures.insert(
                     id,
                     EnLecture {
@@ -667,7 +753,12 @@ impl Fanoratana {
             let lecture = match r {
                 Ok(l) => l,
                 Err(e) => {
-                    log::warn!("lecture : {e}");
+                    if e == fano_reco::SANS_MODELE {
+                        let m = t(self.langue, T::ModeleManquant).to_owned();
+                        self.dire(m);
+                    } else {
+                        log::warn!("lecture : {e}");
+                    }
                     continue;
                 }
             };
@@ -698,6 +789,36 @@ impl Fanoratana {
         if !presents {
             return;
         }
+        // Écrit dans une case de tableau : la case reçoit le texte.
+        let centre = b.center();
+        let case = o.lecon.pages.get(page).and_then(|p| {
+            p.elements.iter().enumerate().find_map(|(i, e)| match e {
+                Element::Tableau(tb) => tb.case(centre).map(|(l, c)| (i, l, c)),
+                _ => None,
+            })
+        });
+        if let Some((_, l, c)) = case {
+            self.memoriser();
+            if let Some(p) = self.pages().and_then(|v| v.get_mut(page)) {
+                p.elements
+                    .retain(|e| !matches!(e, Element::Encre(x) if traits.contains(x)));
+                // L'index a pu bouger : on retrouve le tableau par la case.
+                let tableau = p.elements.iter_mut().find_map(|e| match e {
+                    Element::Tableau(tb) if tb.case(centre) == Some((l, c)) => Some(tb),
+                    _ => None,
+                });
+                if let Some(tb) = tableau {
+                    let case = &mut tb.cellules[l][c];
+                    if !case.is_empty() {
+                        case.push(' ');
+                    }
+                    case.push_str(&lecture.texte);
+                }
+            }
+            self.modifie();
+            return;
+        }
+        let fonction = !crate::editeur::definitions(&lecture.texte).is_empty();
         // Taille : la hauteur de l'écriture ; un mot sans hampe ni jambage est plus bas.
         let taille = (b.height() / 0.85).clamp(14.0, 72.0);
         let texte = Texte {
@@ -710,6 +831,7 @@ impl Fanoratana {
             encadre: fano_core::Encadre::Aucun,
             source: traits.to_vec(),
             alternatives: lecture.alternatives,
+            ..Default::default()
         };
         self.memoriser();
         if let Some(p) = self.pages().and_then(|v| v.get_mut(page)) {
@@ -725,6 +847,10 @@ impl Fanoratana {
         }
         self.selection.clear();
         self.modifie();
+        if fonction {
+            let m = t(self.langue, T::AstuceTracer).to_owned();
+            self.dire(m);
+        }
     }
 
     /// « Mettre au propre » : la sélection, ou toute l'encre en attente, ou toute l'encre de la page.

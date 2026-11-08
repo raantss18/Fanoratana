@@ -15,6 +15,13 @@ pub enum Icone {
     Plus,
     Annuler,
     Retablir,
+    Inserer,
+    Tableau,
+    Graphe,
+    Image,
+    Page,
+    Exporter,
+    Reglages,
 }
 
 pub fn dessiner(p: &Painter, r: Rect, icone: Icone, c: Color32) {
@@ -123,6 +130,73 @@ pub fn dessiner(p: &Painter, r: Rect, icone: Icone, c: Color32) {
         Icone::Plus => {
             for x in [0.28, 0.5, 0.72] {
                 p.circle_filled(u(x, 0.5), r.width() * 0.06, c);
+            }
+        }
+        Icone::Inserer => {
+            p.circle_stroke(u(0.5, 0.5), r.width() * 0.34, s);
+            ligne(&[u(0.5, 0.33), u(0.5, 0.67)]);
+            ligne(&[u(0.33, 0.5), u(0.67, 0.5)]);
+        }
+        Icone::Tableau => {
+            ligne(&[
+                u(0.16, 0.22),
+                u(0.84, 0.22),
+                u(0.84, 0.78),
+                u(0.16, 0.78),
+                u(0.16, 0.22),
+            ]);
+            ligne(&[u(0.16, 0.41), u(0.84, 0.41)]);
+            ligne(&[u(0.16, 0.6), u(0.84, 0.6)]);
+            ligne(&[u(0.5, 0.22), u(0.5, 0.78)]);
+        }
+        Icone::Graphe => {
+            ligne(&[u(0.16, 0.84), u(0.16, 0.14)]);
+            ligne(&[u(0.16, 0.84), u(0.88, 0.84)]);
+            let c: Vec<Pos2> = (0..=12)
+                .map(|i| {
+                    let x = i as f32 / 12.0;
+                    u(0.2 + 0.64 * x, 0.78 - 0.6 * x * x)
+                })
+                .collect();
+            ligne(&c);
+        }
+        Icone::Image => {
+            ligne(&[
+                u(0.14, 0.2),
+                u(0.86, 0.2),
+                u(0.86, 0.8),
+                u(0.14, 0.8),
+                u(0.14, 0.2),
+            ]);
+            ligne(&[
+                u(0.2, 0.74),
+                u(0.42, 0.48),
+                u(0.58, 0.64),
+                u(0.68, 0.54),
+                u(0.8, 0.74),
+            ]);
+            p.circle_stroke(u(0.66, 0.36), r.width() * 0.06, s);
+        }
+        Icone::Page => {
+            ligne(&[
+                u(0.24, 0.12),
+                u(0.62, 0.12),
+                u(0.78, 0.28),
+                u(0.78, 0.88),
+                u(0.24, 0.88),
+                u(0.24, 0.12),
+            ]);
+            ligne(&[u(0.62, 0.12), u(0.62, 0.28), u(0.78, 0.28)]);
+        }
+        Icone::Exporter => {
+            ligne(&[u(0.5, 0.14), u(0.5, 0.62)]);
+            ligne(&[u(0.32, 0.32), u(0.5, 0.14), u(0.68, 0.32)]);
+            ligne(&[u(0.2, 0.56), u(0.2, 0.84), u(0.8, 0.84), u(0.8, 0.56)]);
+        }
+        Icone::Reglages => {
+            for (y, x) in [(0.28, 0.36), (0.5, 0.64), (0.72, 0.42)] {
+                ligne(&[u(0.16, y), u(0.84, y)]);
+                p.circle_filled(u(x, y), r.width() * 0.09, c);
             }
         }
         Icone::Annuler | Icone::Retablir => {
