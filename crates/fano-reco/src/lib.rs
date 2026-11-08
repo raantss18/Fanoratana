@@ -12,6 +12,8 @@
 pub mod formules;
 pub mod lexique;
 pub mod raster;
+pub mod signes;
+pub mod structure;
 
 use std::sync::mpsc::{Receiver, Sender, channel};
 
@@ -167,6 +169,9 @@ pub struct Demande {
     pub id: u64,
     pub traits: Vec<fano_core::Trait>,
     pub mode: Mode,
+    /// Une formule demandée après une autre lecture (Google) : rendue telle quelle si la formule n'est
+    /// pas lue avec assez de confiance.
+    pub repli: Option<Lecture>,
 }
 
 /// Une lecture de texte ressemble-t-elle à une formule ? (signes d'opération, peu de vrais mots)
@@ -205,8 +210,11 @@ impl Lecteur {
                 // Prépare la largeur la plus courante pendant qu'on écrit.
                 let _ = modele.plan(LARGEURS[1]);
                 let mut mfr: Option<formules::ModeleFormules> = None;
+                let signes = signes::ClasseurSignes::charger()
+                    .map_err(|e| log::error!("modèle des signes illisible : {e}"))
+                    .ok();
                 for d in demandes {
-                    let r = lire_demande(&mut modele, &mut mfr, &formules, &d);
+                    let r = lire_demande(&mut modele, signes.as_ref(), &mut mfr, &formules, &d);
                     if rendre.send((d.id, r)).is_err() {
                         break;
                     }
@@ -222,6 +230,17 @@ impl Lecteur {
             id,
             traits: traits.to_vec(),
             mode,
+            repli: None,
+        });
+    }
+
+    /// Relit en formule une ligne déjà lue (par Google) ; si la formule n'est pas sûre, `repli` revient.
+    pub fn lire_formule_sinon(&self, id: u64, traits: &[fano_core::Trait], repli: Lecture) {
+        let _ = self.envoi.send(Demande {
+            id,
+            traits: traits.to_vec(),
+            mode: Mode::Formule,
+            repli: Some(repli),
         });
     }
 }
@@ -229,49 +248,139 @@ impl Lecteur {
 /// Erreur rendue quand une formule est demandée sans le modèle.
 pub const SANS_MODELE: &str = "modele-formules-absent";
 
+/// Confiance à partir de laquelle une formule lue à sa structure est prise sans autre avis.
+const STRUCTURE_SURE: f32 = 0.6;
+
+/// La formule lue à sa structure contient-elle de quoi être une formule (pas seulement des lettres) ?
+fn a_des_maths(latex: &str) -> bool {
+    [
+        "\\frac", "^", "_", "\\sqrt", "\\lim", "\\sum", "\\int", "=", "+", "\\times", "\\to", "<", ">",
+        "\\leq", "\\geq",
+    ]
+    .iter()
+    .any(|m| latex.contains(m))
+}
+
+/// Deux LaTeX égaux, aux espaces près.
+fn meme_latex(a: &str, b: &str) -> bool {
+    let n = |s: &str| s.chars().filter(|c| !c.is_whitespace()).collect::<String>();
+    n(a) == n(b)
+}
+
+/// Une formule (ADR 0013) : d'abord sa structure (signes + géométrie, quelques ms, rien d'inventé) ; si elle
+/// doute, Pix2Text en second avis : d'accord, la lecture est sûre ; en désaccord, elle reste à valider
+/// (confiance basse, l'autre lecture en voisine).
+fn lire_formule(
+    signes: Option<&signes::ClasseurSignes>,
+    mfr: &mut Option<formules::ModeleFormules>,
+    dossier: &std::path::Path,
+    traits: &[fano_core::Trait],
+    structure: Option<structure::LectureFormule>,
+) -> Option<Lecture> {
+    let structure = structure.or_else(|| {
+        let pts: Vec<Vec<fano_core::Point>> = traits
+            .iter()
+            .map(|t| t.points.iter().map(|p| fano_core::Point::new(p.x, p.y)).collect())
+            .collect();
+        signes.and_then(|c| structure::lire_formule(c, &pts))
+    });
+    let dollars = |s: &str| format!("${s}$");
+    if let Some(f) = &structure {
+        if f.confiance >= STRUCTURE_SURE {
+            return Some(Lecture {
+                texte: dollars(&f.latex),
+                confiance: f.confiance,
+                alternatives: f.alternatives.iter().map(|a| dollars(a)).collect(),
+                confiances: Vec::new(),
+            });
+        }
+    }
+    if mfr.is_none() && formules::present(dossier) {
+        *mfr = formules::ModeleFormules::charger(dossier)
+            .map_err(|e| log::error!("formules : {e}"))
+            .ok();
+    }
+    let p2t = mfr
+        .as_ref()
+        .and_then(|m| m.lire(traits).map_err(|e| log::warn!("formules : {e}")).ok())
+        .filter(|l| !l.is_empty());
+    match (structure, p2t) {
+        (Some(f), Some(p)) if meme_latex(&f.latex, &p) => Some(Lecture {
+            texte: dollars(&f.latex),
+            confiance: 0.9,
+            alternatives: f.alternatives.iter().map(|a| dollars(a)).collect(),
+            confiances: Vec::new(),
+        }),
+        (Some(f), p) => Some(Lecture {
+            texte: dollars(&f.latex),
+            confiance: f.confiance,
+            alternatives: p
+                .iter()
+                .map(|p| dollars(p))
+                .chain(f.alternatives.iter().map(|a| dollars(a)))
+                .collect(),
+            confiances: Vec::new(),
+        }),
+        // La structure n'est pas comprise (matrice, système) : Pix2Text seul, comme avant.
+        (None, Some(p)) => Some(Lecture {
+            texte: dollars(&p),
+            confiance: 0.7,
+            alternatives: Vec::new(),
+            confiances: Vec::new(),
+        }),
+        (None, None) => None,
+    }
+}
+
 fn lire_demande(
     modele: &mut Modele,
+    signes: Option<&signes::ClasseurSignes>,
     mfr: &mut Option<formules::ModeleFormules>,
     dossier: &std::path::Path,
     d: &Demande,
 ) -> Result<Lecture, String> {
-    let texte = if d.mode == Mode::Formule {
-        None
-    } else {
-        let (gris, largeur) = rasteriser(&d.traits).ok_or("rien à lire")?;
-        Some(modele.lire_image(&gris, largeur).map_err(|e| e.to_string())?)
-    };
-    let essayer_formule = match (&texte, d.mode) {
-        (_, Mode::Formule) => true,
-        (Some(t), Mode::Auto) => ressemble_formule(&t.texte),
-        _ => false,
-    };
-    if essayer_formule {
-        if mfr.is_none() && formules::present(dossier) {
-            *mfr = formules::ModeleFormules::charger(dossier)
-                .map_err(|e| log::error!("formules : {e}"))
-                .ok();
-        }
-        match mfr.as_ref() {
-            Some(m) => {
-                let latex = m.lire(&d.traits).map_err(|e| e.to_string())?;
-                if !latex.is_empty() {
-                    return Ok(Lecture {
-                        texte: format!("${latex}$"),
-                        // Le modèle des formules ne donne pas de confiance : la lecture au tracé la donne.
-                        confiance: texte.as_ref().map_or(1.0, |t| t.confiance.max(0.7)),
-                        alternatives: texte.iter().map(|t| t.texte.clone()).collect(),
-                        confiances: Vec::new(),
-                    });
+    if d.mode == Mode::Formule {
+        return match (lire_formule(signes, mfr, dossier, &d.traits, None), &d.repli) {
+            (Some(f), Some(r)) if f.confiance < STRUCTURE_SURE => {
+                // Google a lu la ligne : sa lecture reste, la formule devient une lecture voisine.
+                let mut r = r.clone();
+                r.alternatives.insert(0, f.texte);
+                Ok(r)
+            }
+            (Some(f), _) => Ok(f),
+            (None, Some(r)) => Ok(r.clone()),
+            (None, None) => Err(if formules::present(dossier) {
+                "formule illisible".into()
+            } else {
+                SANS_MODELE.into()
+            }),
+        };
+    }
+    let (gris, largeur) = rasteriser(&d.traits).ok_or("rien à lire")?;
+    let mut l = modele.lire_image(&gris, largeur).map_err(|e| e.to_string())?;
+    if d.mode == Mode::Auto {
+        // La structure se lit en quelques millisecondes : une ligne qui y est sûre et a des maths est une formule.
+        let pts: Vec<Vec<fano_core::Point>> = d
+            .traits
+            .iter()
+            .map(|t| t.points.iter().map(|p| fano_core::Point::new(p.x, p.y)).collect())
+            .collect();
+        let structure = signes.and_then(|c| structure::lire_formule(c, &pts));
+        let sure = structure
+            .as_ref()
+            .is_some_and(|f| f.confiance >= 0.8 && a_des_maths(&f.latex));
+        if sure || ressemble_formule(&l.texte) {
+            if let Some(f) = lire_formule(signes, mfr, dossier, &d.traits, structure) {
+                if f.confiance >= l.confiance.min(STRUCTURE_SURE) || sure {
+                    let mut f = f;
+                    f.alternatives.push(l.texte);
+                    return Ok(f);
                 }
             }
-            None if d.mode == Mode::Formule => return Err(SANS_MODELE.into()),
-            None => {}
         }
     }
     // Texte : les mots incertains sont corrigés par le lexique français ; la lecture brute devient une
     // lecture voisine, pour revenir en arrière d'un toucher.
-    let mut l = texte.ok_or("rien à lire")?;
     if !ressemble_formule(&l.texte) {
         let corrige = lexique::corriger(&l.texte, &l.confiances);
         if corrige != l.texte {

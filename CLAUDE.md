@@ -26,7 +26,7 @@
 ```
 crates/fano-core     modèle : coffre (niveau/chapitre/leçon), pages, éléments
 crates/fano-ink      encre : contour à pression, formes (ShortStraw), rature, lignes et mots
-crates/fano-reco     lecture : PP-OCRv5 latin par tract (Rust pur), sur un fil
+crates/fano-reco     lecture : PP-OCRv5 latin par tract (Rust pur), sur un fil ; formules : signes (Fikajiana) + structure
 crates/fano-render   rendu au propre (Caveat, formules, trait fait main), export SVG/PNG/PDF
 crates/fano-maj      mises à jour dans l'app (release.json signé Ed25519, SHA-256)
 crates/fano-ui       l'écran egui (rail, toile, coffre, éditeur clavier, diapos)

@@ -926,12 +926,13 @@ impl Fanoratana {
                 confiances: Vec::new(),
             });
             if let Ok(lecture) = &r {
+                // Une formule se relit à sa structure (modèle des signes, embarqué) ; si elle doute, la
+                // lecture de Google revient telle quelle.
                 let formule = fano_reco::ressemble_formule(&lecture.texte)
-                    && self.mode_lecture == crate::app::ModeLecture::Auto
-                    && fano_reco::formules::present(&self.dossier_formules());
+                    && self.mode_lecture == crate::app::ModeLecture::Auto;
                 if formule {
                     if let (Some(lecteur), Some(l)) = (&self.lecteur, self.lectures.get(&id)) {
-                        lecteur.lire(id, &l.lus, fano_reco::Mode::Formule);
+                        lecteur.lire_formule_sinon(id, &l.lus, lecture.clone());
                         continue;
                     }
                 }

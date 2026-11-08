@@ -93,6 +93,13 @@ Ordre de priorité (chaque étape est utilisable seule) :
 
 ## 4. Lecture (priorité)
 
+- ✅ Formules lues à leur structure (ADR 0013) : modèle de signes de Fikajiana + géométrie ; banc de 23 lignes d'Antsa : 14 justes,
+  aucune fausse sûre (`cargo test -p fano-reco banc -- --nocapture`).
+- ⬜ Formules : essai sur le Pad 7 (latence, justesse) ; apprendre des corrections (plus proche voisin, comme Fikajiana ADR 0041) ;
+  réentraîner le modèle de signes avec l'écriture d'Antsa (`y`, `(`, `;`, `g`, `e` du téléphone ratés).
+- ⬜ Formules : matrices et systèmes (`pmatrix`, `cases`), vecteur `\vec{AB}`, normes, `\sum` avec bornes réelles à tester.
+- ⬜ Rendu Typst + MiTeX, environnements amsthm, export LaTeX/TikZ (`docs/recherche/maths.md`).
+
 - ⬜ Mesurer la justesse sur l'écriture réelle (200 lignes d'Antsa, au doigt) : CER, mots justes, latence sur le Pad 7.
 - ⬜ PyLaia (MIT) affiné sur des lignes synthétiques françaises et malgaches (polices OFL) puis sur l'écriture donnée en CC0 ; seuil
   d'adoption : CER ≤ 10 %, < 100 ms par mot.

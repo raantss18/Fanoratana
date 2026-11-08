@@ -2,6 +2,8 @@
 
 ## [Non publié]
 
+- Formules lues à leur structure, signe par signe (modèle de Fikajiana) : fractions, racines, exposants, indices, `lim` et sa flèche, `Σ`, `∫` ; une formule douteuse reste à valider au lieu d'être inventée.
+
 ## [0.0.1] — 2026-11-08
 
 - Coffre de cours niveau → chapitre → leçon, recherche, corbeille ; niveaux type 6e … M2.
