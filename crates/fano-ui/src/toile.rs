@@ -888,6 +888,8 @@ impl Fanoratana {
             self.modifie();
             return;
         }
+        let mut lecture = lecture;
+        lecture.texte = fano_render::expr::corriger_definition(&lecture.texte);
         let fonction = !crate::editeur::definitions(&lecture.texte).is_empty();
         let gras = self.est_gras(page, traits);
         // Taille : la hauteur de l'écriture ; un mot sans hampe ni jambage est plus bas.

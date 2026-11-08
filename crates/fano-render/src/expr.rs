@@ -249,6 +249,31 @@ pub fn definition(s: &str) -> Option<Definition> {
     Some(Definition::Fonction { nom, expr })
 }
 
+/// Une définition de fonction mal lue sur sa variable (`f(z)=2x+1`, `g(×)=x^2`) : la variable entre
+/// parenthèses est forcément celle du membre de droite. Rend le texte corrigé, ou tel quel.
+pub fn corriger_definition(texte: &str) -> String {
+    let (dollar, s) = match texte.strip_prefix('$').and_then(|t| t.strip_suffix('$')) {
+        Some(t) => (true, t),
+        None => (false, texte),
+    };
+    let Some((gauche, droite)) = s.split_once('=') else {
+        return texte.to_owned();
+    };
+    let g = gauche.trim();
+    let (Some(ouvre), true) = (g.find('('), g.ends_with(')')) else {
+        return texte.to_owned();
+    };
+    let nom = &g[..ouvre];
+    let var = g[ouvre + 1..g.len() - 1].trim();
+    let nom_ok = !nom.is_empty() && nom.chars().count() <= 2 && nom.chars().all(|c| c.is_alphabetic());
+    let droite_x = droite.contains('x') && !droite.contains(var);
+    if nom_ok && var != "x" && var.chars().count() == 1 && droite_x {
+        let corrige = format!("{nom}(x)={}", droite.trim_start());
+        return if dollar { format!("${corrige}$") } else { corrige };
+    }
+    texte.to_owned()
+}
+
 pub fn evaluer(e: &Expr, x: f64) -> f64 {
     match e {
         Expr::Nombre(n) => *n,
@@ -291,6 +316,20 @@ mod tests {
             Definition::Fonction { expr, .. } => evaluer(&expr, x),
             d => panic!("{d:?}"),
         }
+    }
+
+    #[test]
+    fn variable_mal_lue() {
+        // Relevé sur le Pad 7 (2026-11-08) : « f(x)=2x+1 » lu « f(z)=2x+1 ».
+        assert_eq!(corriger_definition("f(z)=2x+1"), "f(x)=2x+1");
+        assert_eq!(corriger_definition("$g(×)=x^{2}$"), "$g(x)=x^{2}$");
+        assert_eq!(
+            corriger_definition("f(t)=3t+1"),
+            "f(t)=3t+1",
+            "une autre variable, cohérente, reste"
+        );
+        assert_eq!(corriger_definition("Bonjour"), "Bonjour");
+        assert!(definition(&corriger_definition("f(z)=2x+1")).is_some());
     }
 
     #[test]

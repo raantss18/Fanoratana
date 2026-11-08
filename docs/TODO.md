@@ -4,6 +4,9 @@
 
 ## 0. Erreurs signalées (ne reviennent jamais)
 
+- ✅ « f(x)=2x+1 » lu « f(z)=2x+1 » (Pad 7 a11fafee, 2026-11-08) : la variable d'une définition est celle du membre de droite
+  (`expr::corriger_definition`, test `variable_mal_lue`).
+
 - ✅ Un tableau inséré se posait sous le dernier élément, hors de l'écran, puis par-dessus le texte (Pad 7, 2026-11-08) : espace
   libre visible, sinon défilement jusqu'à lui.
 
@@ -30,6 +33,8 @@
 - ✅ Tableaux, mise en forme (listes, alignement, souligné, surligné), courbes GeoGebra, formules LaTeX, menus en listes (ADR 0010, 0011).
 - ✅ Gras reconnu à l'épaisseur (≥ 1,45 × l'écriture habituelle de la page) ; fin de page → « + Ajouter une page » (essayé sur le
   Pad 7) ; page ajustée à la largeur et bloquée sur ses bords sauf zoom.
+- ✅ Deuxième tablette (Pad 7 a11fafee, interface en anglais, 2026-11-08) : titre et phrase lus justes, triangle tenu → forme,
+  signature → encre, rature d'une seule ligne, « Important » écrit épais → gras, leçon gardée après mise à jour de l'APK.
 - 🟡 Gras : à mesurer sur de vraies écritures (le seuil 1,45 est une hypothèse ; repasser deux fois sur un mot pas encore pris en compte).
 - 🟡 Essai complet au doigt par Antsa : rature, gomme, formes tenues, sélection, diapos, export PDF vers Documents.
 - 🟡 Mise à jour réelle de 0.0.1 vers 0.0.2 sur la tablette (la 0.0.1 est la première : rien à tester avant la 0.0.2).
