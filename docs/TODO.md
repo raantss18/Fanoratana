@@ -54,6 +54,12 @@
 - ⬜ En portrait étroit, le titre de la leçon passe sous « Insérer ».
 - ✅ Écran « À propos » (version, licence, coordonnées d'Antsa).
 
+- ✅ Les `$` d'Antsa (S plus large que haut) n'étaient pas reconnus ; les traits après un `$` ouvert étaient perdus au lieu
+  d'attendre le second (`tests/ecriture_antsa.rs`, traits du Pad 7 du 2026-11-09).
+- ✅ `\mathbb{R}` lu juste par Google mais écrit en texte : une commande LaTeX écrite à la main devient une formule.
+- ✅ `f(x)=mx+p` : Pix2Text le lisait juste, la lecture par signes douteuse (« μJc)=m1C+7 ») l'emportait ; Pix2Text gagne.
+- ⬜ Un gribouillis de rature lu « m » (lecture 2 du journal du 2026-11-09) : à reproduire.
+
 ## 1. Version 0.0.1 (2026-11-08)
 
 - ✅ Conception : questions à Antsa, recherche sourcée (`docs/recherche/reconnaissance.md`), ADR 0001–0009, identité (ADR 0006).

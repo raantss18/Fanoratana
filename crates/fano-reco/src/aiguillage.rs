@@ -51,6 +51,17 @@ pub fn est_maths(texte: &str) -> bool {
     francais * 2 < m.len().max(1) || (m.is_empty() && (signes > 0 || appel))
 }
 
+/// Du LaTeX écrit à la main : une barre oblique inverse suivie d'un nom de commande.
+pub fn est_latex_source(texte: &str) -> bool {
+    texte.match_indices('\\').any(|(i, _)| {
+        texte[i + 1..]
+            .chars()
+            .take_while(char::is_ascii_alphabetic)
+            .count()
+            >= 2
+    })
+}
+
 /// Une lecture en texte brut (Google, PP-OCR) écrite en LaTeX.
 pub fn vers_latex(texte: &str) -> String {
     let mut s = String::new();
@@ -78,6 +89,10 @@ pub fn vers_latex(texte: &str) -> String {
 pub fn mathematiser(texte: &str) -> String {
     if texte.contains('$') {
         return texte.to_owned();
+    }
+    // Une commande LaTeX écrite à la main (`\mathbb{R}`, `\sigma`, `\frac{1}{2}`) : la ligne est du LaTeX.
+    if est_latex_source(texte) {
+        return format!("${}$", texte.trim());
     }
     let jetons: Vec<&str> = texte.split(' ').collect();
     let mut res: Vec<String> = Vec::with_capacity(jetons.len());
@@ -132,6 +147,14 @@ mod tests {
         assert!(!est_maths("En 1789, les États généraux = Versailles"));
         assert!(!est_maths("Les fonctions affines"));
         assert!(!est_maths("Exercice 3 :"));
+    }
+
+    #[test]
+    fn latex_ecrit_a_la_main() {
+        // Lu tel quel par Google sur le Pad 7 (2026-11-09).
+        assert_eq!(mathematiser("\\mathbb{R}"), "$\\mathbb{R}$");
+        assert_eq!(mathematiser("\\sigma"), "$\\sigma$");
+        assert!(!est_latex_source("C'est \\ la fin"));
     }
 
     #[test]

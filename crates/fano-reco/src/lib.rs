@@ -336,6 +336,17 @@ fn lire_formule(
             alternatives: f.alternatives.iter().map(|a| dollars(a)).collect(),
             confiances: Vec::new(),
         }),
+        // La structure doute et Pix2Text a lu autre chose : la ligne est une formule (on est ici parce
+        // qu'elle en a la forme), Pix2Text lit mieux les formules entières (« f(x)=mx+p » d'Antsa, lu
+        // « μJc)=m1C+7 » par les signes) ; la lecture par signes reste en voisine.
+        (Some(f), Some(p)) => Some(Lecture {
+            texte: dollars(&p),
+            confiance: 0.65,
+            alternatives: std::iter::once(dollars(&f.latex))
+                .chain(f.alternatives.iter().map(|a| dollars(a)))
+                .collect(),
+            confiances: Vec::new(),
+        }),
         (Some(f), p) => Some(Lecture {
             texte: dollars(&f.latex),
             confiance: f.confiance,

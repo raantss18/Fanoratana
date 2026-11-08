@@ -830,7 +830,10 @@ impl Fanoratana {
             // Par blocs : une fraction, `lim` et sa borne, une matrice restent d'un seul tenant.
             for ligne in fano_ink::grouper_blocs(&boites) {
                 let ts: Vec<Trait> = ligne.traits.iter().map(|&i| traits[i].clone()).collect();
-                morceaux.extend(decouper_dollars(ts));
+                let (m, attente) = decouper_dollars(ts);
+                morceaux.extend(m);
+                // Après un `$` ouvert : ces traits restent en attente et seront relus avec le second `$`.
+                self.attente.extend(attente.into_iter().map(|t| (page, t)));
             }
             for (tous, mode_impose, a_effacer) in morceaux {
                 if tous.is_empty() {
@@ -986,7 +989,12 @@ impl Fanoratana {
                 return;
             };
             match &r {
-                Ok(x) => log::info!("lecture {id} lue : {:?} ({:.2}) voisines {:?}", x.texte, x.confiance, x.alternatives),
+                Ok(x) => log::info!(
+                    "lecture {id} lue : {:?} ({:.2}) voisines {:?}",
+                    x.texte,
+                    x.confiance,
+                    x.alternatives
+                ),
                 Err(e) => log::info!("lecture {id} : erreur {e}"),
             }
             let lecture = match r {
@@ -1457,7 +1465,11 @@ fn journal_traits(id: u64, ts: &[Trait]) {
     let traits: Vec<String> = ts
         .iter()
         .map(|t| {
-            let p: Vec<String> = t.points.iter().map(|p| format!("[{:.1},{:.1}]", p.x, p.y)).collect();
+            let p: Vec<String> = t
+                .points
+                .iter()
+                .map(|p| format!("[{:.1},{:.1}]", p.x, p.y))
+                .collect();
             format!("[{}]", p.join(","))
         })
         .collect();
@@ -1467,7 +1479,11 @@ fn journal_traits(id: u64, ts: &[Trait]) {
 /// La règle des `$` écrits à la main (comme en LaTeX) : ce qui est entre deux `$` d'une ligne est une
 /// formule, lue comme telle ; les `$` sont effacés à la mise au propre. Le reste de la ligne est lu
 /// normalement. Un `$` ouvert sans son second : la suite attend (on écrit peut-être encore la formule).
-pub(crate) fn decouper_dollars(ts: Vec<Trait>) -> Vec<(Vec<Trait>, Option<fano_reco::Mode>, Vec<Trait>)> {
+/// Rend les morceaux à lire, et les traits à laisser en attente (un `$` ouvert et ce qui le suit : ils
+/// seront relus avec le second `$`).
+pub(crate) fn decouper_dollars(
+    ts: Vec<Trait>,
+) -> (Vec<(Vec<Trait>, Option<fano_reco::Mode>, Vec<Trait>)>, Vec<Trait>) {
     let pts: Vec<Vec<Point>> = ts
         .iter()
         .map(|t| t.points.iter().map(PointEncre::pos).collect())
@@ -1478,10 +1494,13 @@ pub(crate) fn decouper_dollars(ts: Vec<Trait>) -> Vec<(Vec<Trait>, Option<fano_r
         log::info!("dollars : {} S, {} $ complets", s, d.len());
     }
     if d.is_empty() {
-        return couper_ligne(ts)
-            .into_iter()
-            .map(|m| (m, None, Vec::new()))
-            .collect();
+        return (
+            couper_ligne(ts)
+                .into_iter()
+                .map(|m| (m, None, Vec::new()))
+                .collect(),
+            Vec::new(),
+        );
     }
     let marques: Vec<(f32, f32)> = d
         .iter()
@@ -1494,6 +1513,11 @@ pub(crate) fn decouper_dollars(ts: Vec<Trait>) -> Vec<(Vec<Trait>, Option<fano_r
     let paires = marques.len() / 2;
     let mut textes: Vec<Vec<Trait>> = vec![Vec::new(); paires + 1];
     let mut formules: Vec<Vec<Trait>> = vec![Vec::new(); paires];
+    let mut attente: Vec<Trait> = Vec::new();
+    if marques.len() % 2 == 1 {
+        let (a, b) = d[d.len() - 1];
+        attente.extend([ts[a].clone(), ts[b].clone()]);
+    }
     for (i, t) in ts.iter().enumerate() {
         if dans_un_dollar(i) {
             continue;
@@ -1504,8 +1528,9 @@ pub(crate) fn decouper_dollars(ts: Vec<Trait>) -> Vec<(Vec<Trait>, Option<fano_r
             textes[k / 2].push(t.clone());
         } else if k / 2 < paires {
             formules[k / 2].push(t.clone());
+        } else {
+            attente.push(t.clone());
         }
-        // Après un `$` ouvert sans second : on attend.
     }
     let mut res = Vec::new();
     for (k, t) in textes.into_iter().enumerate() {
@@ -1521,7 +1546,7 @@ pub(crate) fn decouper_dollars(ts: Vec<Trait>) -> Vec<(Vec<Trait>, Option<fano_r
         }
     }
     res.retain(|m| !m.0.is_empty());
-    res
+    (res, attente)
 }
 
 /// Coupe une ligne là où un grand vide sépare les traits (étiquettes d'un arbre, deux colonnes) :

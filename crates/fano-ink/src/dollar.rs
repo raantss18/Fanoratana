@@ -12,7 +12,9 @@ pub fn est_un_s(pts: &[Point]) -> bool {
     }
     let r = Rect::from_points(pts.iter().copied());
     let (w, h) = (r.width(), r.height());
-    if h < 1.1 * w || w <= 0.0 {
+    // Le S d'Antsa est souvent plus large que haut (Pad 7, 2026-11-09) : c'est le trait qui le coupe qui
+    // confirme le `$`.
+    if h < 0.5 * w || w <= 0.0 {
         return false;
     }
     let (debut, fin) = (pts[0], pts[pts.len() - 1]);
