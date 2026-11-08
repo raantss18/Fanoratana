@@ -16,6 +16,7 @@ pub enum Icone {
     Annuler,
     Retablir,
     Inserer,
+    Surligneur,
     Tableau,
     Graphe,
     Image,
@@ -131,6 +132,18 @@ pub fn dessiner(p: &Painter, r: Rect, icone: Icone, c: Color32) {
             for x in [0.28, 0.5, 0.72] {
                 p.circle_filled(u(x, 0.5), r.width() * 0.06, c);
             }
+        }
+        Icone::Surligneur => {
+            // Un marqueur à bout biseauté et sa trace large.
+            ligne(&[
+                u(0.30, 0.62),
+                u(0.62, 0.22),
+                u(0.80, 0.36),
+                u(0.48, 0.76),
+                u(0.30, 0.62),
+            ]);
+            ligne(&[u(0.30, 0.62), u(0.24, 0.74), u(0.36, 0.78), u(0.48, 0.76)]);
+            p.rect_filled(Rect::from_min_max(u(0.12, 0.84), u(0.62, 0.92)), 1.0, c);
         }
         Icone::Inserer => {
             p.circle_stroke(u(0.5, 0.5), r.width() * 0.34, s);

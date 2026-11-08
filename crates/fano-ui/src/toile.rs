@@ -18,6 +18,8 @@ use crate::teinte;
 use crate::textes::{T, t};
 
 const ECART: f32 = 28.0;
+/// La feuille commence sous les boutons du haut (ils ne cachent jamais le haut de la page au repos).
+const HAUT: f32 = 76.0;
 /// La carte « Ajouter une page » sous la dernière page.
 const CARTE: f32 = 120.0;
 
@@ -39,7 +41,7 @@ impl Fanoratana {
             .map(|i| Repere {
                 origine: Pos2::new(
                     x0,
-                    zone.top() + ECART + self.defil.y + i as f32 * (h + ECART) * self.zoom,
+                    zone.top() + HAUT + self.defil.y + i as f32 * (h + ECART) * self.zoom,
                 ),
                 zoom: self.zoom,
             })
@@ -85,7 +87,7 @@ impl Fanoratana {
         self.gestes(ui, zone, &rep);
         // Défilement borné : on ne perd jamais la feuille.
         let n = self.ouverte.as_ref().map_or(1, |o| o.lecon.pages.len()) as f32;
-        let total = n * (h + ECART) * self.zoom + ECART + CARTE * self.zoom;
+        let total = n * (h + ECART) * self.zoom + HAUT + CARTE * self.zoom + 80.0;
         self.defil.y = self.defil.y.clamp(-(total - zone.height() * 0.5).max(0.0), 0.0);
         // Gauche-droite : la page est ajustée à la largeur et bloquée sur ses bords ; zoomée, on va
         // jusqu'à ses bords, jamais au-delà.
@@ -205,27 +207,13 @@ impl Fanoratana {
             }
         }
         self.barre_contexte(ui, zone);
-        // En-tête discret : où on est, et la page.
+        // Le numéro de page, discret, en bas au centre (le titre est dans le coin haut gauche).
         if let Some(o) = &self.ouverte {
-            let titre = format!("{} — {}", o.fil, o.lecon.titre);
             let n = o.lecon.pages.len();
-            // Le fil a son propre fond : il ne se mêle jamais au contenu qui défile dessous.
-            let galley =
-                painter.layout_no_wrap(titre.clone(), egui::FontId::proportional(14.0), teinte::DOUX);
-            let fond =
-                egui::Rect::from_min_size(zone.left_top() + vec2(8.0, 2.0), galley.size() + vec2(16.0, 8.0));
-            painter.rect_filled(fond, 6.0, Color32::from_rgba_unmultiplied(0xf1, 0xf1, 0xf1, 235));
-            painter.text(
-                zone.left_top() + vec2(16.0, 6.0),
-                egui::Align2::LEFT_TOP,
-                titre,
-                egui::FontId::proportional(14.0),
-                teinte::DOUX,
-            );
             if n > 1 {
                 painter.text(
-                    zone.left_bottom() + vec2(16.0, -10.0),
-                    egui::Align2::LEFT_BOTTOM,
+                    zone.center_bottom() + vec2(0.0, -26.0),
+                    egui::Align2::CENTER_BOTTOM,
                     format!("{} / {n}", self.page_vue + 1),
                     egui::FontId::proportional(14.0),
                     teinte::DOUX,
@@ -569,7 +557,7 @@ impl Fanoratana {
         self.zoom = (self.zoom * facteur).clamp(0.25, 5.0);
         let k = self.zoom / ancien;
         // Le point sous les doigts reste sous les doigts.
-        let haut = Pos2::new(zone.center().x, zone.top() + ECART);
+        let haut = Pos2::new(zone.center().x, zone.top() + HAUT);
         let rel = centre - haut - self.defil;
         self.defil += rel - rel * k;
     }

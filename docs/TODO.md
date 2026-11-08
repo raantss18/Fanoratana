@@ -58,7 +58,16 @@
 - 🟡 Essai complet au doigt par Antsa : rature, gomme, formes tenues, sélection, diapos, export PDF vers Documents.
 - 🟡 Mise à jour réelle de 0.0.1 vers 0.0.2 sur la tablette (la 0.0.1 est la première : rien à tester avant la 0.0.2).
 
-## 2. Annoter un PDF ou une image (demande d'Antsa, 2026-11-08) — prochaine version 0.0.2
+## 2. Interface d'après Fikajiana (Antsa, 2026-11-08) — en cours
+
+1. ⬜ Feuille plein écran, plus de rail ; quatre coins flottants (docs/design.md § Écran).
+2. ⬜ Bouton Outils à la couleur du stylo (bas droite) + Annuler/Rétablir à côté ; carte Outils en lignes nommées.
+3. ⬜ « + Insérer » et « ⋯ Menu » en haut à droite ; « ≡ » + titre du cours en haut à gauche ; « Taper un texte » en bas à gauche.
+4. ⬜ Réglages en écran à part, en sections (Écriture, Lecture, Langue, Mises à jour, À propos).
+5. ⬜ Mes cours en panneau par-dessus (il ne pousse plus la feuille).
+6. ⬜ Captures, essai sur la tablette (portrait et paysage), contraste et cibles ≥ 48 dp.
+
+## 3. Annoter un PDF ou une image (demande d'Antsa, 2026-11-08) — prochaine version 0.0.2
 
 Ordre de priorité (chaque étape est utilisable seule) :
 
@@ -74,7 +83,7 @@ Ordre de priorité (chaque étape est utilisable seule) :
 5. ⬜ **Confort** : gros PDF rendus page par page à la demande, miniatures des pages, aller à une page ; gomme qui ne touche jamais le fond.
 6. ⬜ **Plus tard** : recherche dans le texte du PDF, copier une zone du PDF dans un cours, PDF protégés (refus clair).
 
-## 3. Lecture (priorité)
+## 4. Lecture (priorité)
 
 - ⬜ Mesurer la justesse sur l'écriture réelle (200 lignes d'Antsa, au doigt) : CER, mots justes, latence sur le Pad 7.
 - ⬜ PyLaia (MIT) affiné sur des lignes synthétiques françaises et malgaches (polices OFL) puis sur l'écriture donnée en CC0 ; seuil
@@ -86,7 +95,7 @@ Ordre de priorité (chaque étape est utilisable seule) :
 - ⬜ Code manuscrit : lexique de mots-clés, indentation par la position du tracé, coloration.
 - ⬜ Lecture page entière sur PC en option (GLM-OCR, MIT).
 
-## 4. Cours
+## 5. Cours
 
 - ⬜ Nœuds et arêtes : un cercle avec une étiquette relié par des flèches = un graphe ; arbres rangés automatiquement.
 - ⬜ Tableaux à main levée ; listes à puces reconnues ; liens entre leçons `[[…]]` façon Obsidian.
@@ -94,7 +103,7 @@ Ordre de priorité (chaque étape est utilisable seule) :
 - ⬜ Modèles de leçon (cours, fiche d'exercices, évaluation) ; numérotation automatique des exercices.
 - ⬜ Interface en malgache.
 
-## 5. Plateformes
+## 6. Plateformes
 
 - ⬜ Paquets Linux (AppImage, .deb) ; icône et entrée de menu installées.
 - ⬜ Accessibilité : lecteur d'écran (TalkBack) sur le rail et le coffre ; vérifier les contrastes.

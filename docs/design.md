@@ -18,29 +18,43 @@
 Polices : **Caveat** (OFL) pour tout ce qui est écrit sur la feuille ; **Nunito** (OFL) pour l'interface ; Noto Sans Math (OFL) en repli
 pour les symboles. Corps de l'interface 17 px, cibles ≥ 48 dp.
 
-## Écran
+## Écran (refonte d'après Fikajiana, 2026-11-08 — remplace le rail)
+
+> Antsa : « base-toi sur l'interface de Fikajiana ; organise les outils de façon très intelligente ».
+> Principe de Fikajiana (ADR 0018 là-bas) : la feuille occupe tout l'écran, sans barre ni rail ; quelques commandes flottent
+> aux quatre coins ; chaque commande porte son nom ; un seul bouton Outils à la couleur du stylo.
 
 ```
-┌────┬──────────────────────────────────────────┐
-│ ▤  │  Niveau › Chapitre — Leçon               │  ← fil discret, gris
-│ ✎● │   ┌────────── feuille ──────────┐        │
-│ ○△ │   │  Titre souligné à la main   │        │
-│ ⌨  │   │  texte au propre (Caveat)   │        │
-│ ⬚  │   │  ┌ Définition ───────────┐  │        │
-│ ⌫  │   │  └───────────────────────┘  │        │
-│ ●  │   │  [1789] ───→ [1792]         │        │
-│ ✦  │   └─────────────────────────────┘        │
-│ ▶  │                                          │
-│ …  │                                          │
-│ ↶↷ │                                          │
-└────┴──────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ (≡) Seconde › Histoire — La Révolution        [+ Insérer] (⋯) │  ← haut : où je suis · ajouter · tout le reste
+│                                                              │
+│                      la feuille, tout l'écran                │
+│                                                              │
+│ [⌨ Taper un texte]                   1 / 3      (↶)(↷) (●✎) │  ← bas : clavier · page · annuler · OUTILS
+└──────────────────────────────────────────────────────────────┘
 ```
 
-- Le **rail** (68 dp) porte tout : Mes cours, les cinq outils, la pastille couleur/épaisseur, Mettre au propre, Présenter, Plus,
-  Annuler/Rétablir en bas. Le reste de l'écran est à la feuille.
-- **Mes cours** s'ouvre en panneau à gauche ; **l'éditeur clavier** en carte en haut ; les **messages** en bandeau noir en bas.
-- **Le seul moment fort** : l'écriture qui se met au propre. Pas d'autre animation.
-- **Encadrés** monochromes : l'étiquette et le cadre les distinguent (À retenir : cadre épais et léger fond).
+Ordre de fréquence → place :
+
+| Fréquence | Commande | Où |
+|---|---|---|
+| à chaque geste | écrire, dessiner, gommer (le stylet / le doigt) | la feuille elle-même |
+| très souvent | stylo, couleur, épaisseur, gomme, formes, sélection | **Outils** (bas droite, pouce de la main droite) |
+| très souvent | annuler, rétablir | deux ronds à côté d'Outils, un toucher |
+| souvent | taper au clavier | pastille bas gauche |
+| souvent | insérer : texte, tableau, courbe, image, page | **+ Insérer** (haut droite) |
+| parfois | mes cours (niveau › chapitre › leçon), chercher | **≡** et le titre (haut gauche) |
+| parfois | présenter, exporter, fond de page | **⋯ Menu** (haut droite) |
+| rarement | réglages (doigt, mise au propre, lecture, langue, mises à jour, modèle des formules) | Menu › Réglages, écran à part, en sections |
+
+**Carte Outils** (≤ 320 dp, défile) : stylos en pastilles + épaisseur ; puis lignes nommées : Stylo · Surligneur · Formes ·
+Sélection · Gomme ; interrupteur « Le doigt écrit » ; « Lire comme » (Deviner / Texte / Formule) ; Mettre au propre ;
+Zoom + / Zoom − / Recentrer (alternative aux deux doigts, WCAG 2.5.7). Choisir un outil referme la carte.
+
+- **Contexte** : une sélection ou un tableau fait apparaître sa barre en haut au centre (± ligne, ± colonne, Tracer, Supprimer).
+- **Monochrome** (ADR 0006) : boutons ronds et pastilles gris très clair `#EFEFEF`, ombre douce, icônes au trait noir ;
+  l'outil actif en noir plein. La couleur n'apparaît que sur la pastille du stylo.
+- **Le seul moment fort** : l'écriture qui se met au propre.
 
 ## Captures
 

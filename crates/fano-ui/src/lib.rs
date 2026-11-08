@@ -6,6 +6,7 @@
 
 mod app;
 mod coffre_ui;
+mod coins;
 mod editeur;
 pub mod icones;
 mod maj;

@@ -253,9 +253,9 @@ fn ecrans() {
         h.get_by_label("Mes cours").click();
     });
     for (nom, bouton) in [
-        ("menu-outil", "Outil"),
+        ("menu-outils", "Outils"),
         ("menu-inserer", "Insérer"),
-        ("menu-plus", "Plus"),
+        ("menu-plus", "Menu"),
     ] {
         capture(nom, egui::vec2(1280.0, 800.0), |h| {
             use egui_kittest::kittest::Queryable;

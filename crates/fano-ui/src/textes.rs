@@ -138,6 +138,17 @@ textes! {
     AstuceTracer => "C'est une fonction : touche-la puis « Tracer la courbe ».", "This is a function: tap it, then “Plot the graph”.";
     FinDePage => "Bas de la page : touche « + Ajouter une page » sous la feuille pour continuer.", "Bottom of the page: tap “+ Add a page” below the sheet to go on.";
     Gras => "Gras", "Bold";
+    Outils => "Outils", "Tools";
+    Menu => "Menu", "Menu";
+    TaperTexte => "Taper un texte", "Type text";
+    Stylo => "Stylo", "Pen";
+    TexteOuJeTouche => "Texte là où je touche", "Text where I tap";
+    ZoomPlus => "Zoom", "Zoom in";
+    ZoomMoins => "Zoom", "Zoom out";
+    Recentrer => "Recentrer", "Fit page";
+    Ecriture => "Écriture", "Writing";
+    LectureEcriture => "Lecture de l'écriture", "Reading handwriting";
+    MisesAJour => "Mises à jour", "Updates";
     ChercherMaj => "Rechercher une mise à jour", "Check for updates";
     MajAuto => "Chercher les mises à jour chaque jour", "Check for updates every day";
     MajRecherche => "Recherche d'une mise à jour…", "Checking for updates…";
