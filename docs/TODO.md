@@ -43,6 +43,9 @@
 - ✅ Le clavier d'Android s'ouvrait et se fermait en boucle dans « Nouvelle leçon » (focus redemandé à chaque image) : des lettres
   se perdaient (« Essai du cours » → « Esa dcours ») et l'app a fini par se fermer (Pad 7, 2026-11-08). Focus demandé une seule fois.
 
+- ✅ L'APK avec ML Kit plantait au démarrage (R8 retirait `WorkDatabase_Impl` de WorkManager) : règles de conservation dans
+  `android/app/proguard-rules.pro` ; à vérifier sur la tablette après chaque ajout de dépendance Android.
+
 ## 1. Version 0.0.1 (2026-11-08)
 
 - ✅ Conception : questions à Antsa, recherche sourcée (`docs/recherche/reconnaissance.md`), ADR 0001–0009, identité (ADR 0006).
