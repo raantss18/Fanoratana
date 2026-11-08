@@ -2,6 +2,8 @@
 
 ## [Non publié]
 
+- Texte ou formule tranché tout seul ; une formule écrite entre deux `$` à la main est toujours lue en formule ; « sur R » devient ℝ, une lettre seule devient une variable.
+
 - Systèmes (accolade) et matrices lus et mis au propre ; page de cours lue par blocs (fractions, limites, matrices d'un seul tenant).
 - Écran « À propos » : version, licence et coordonnées de l'autrice.
 - La lecture Google (ML Kit) se télécharge enfin sur Android ; Réglages lisibles en fenêtre étroite.

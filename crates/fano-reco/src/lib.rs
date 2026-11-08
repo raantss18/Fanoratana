@@ -9,6 +9,7 @@
 //!
 //! La lecture tourne sur un fil à part ([`Lecteur`]) : l'écriture n'attend jamais.
 
+pub mod aiguillage;
 pub mod formules;
 pub mod lexique;
 pub mod raster;
@@ -261,6 +262,30 @@ fn a_des_maths(latex: &str) -> bool {
     .any(|m| latex.contains(m))
 }
 
+/// Une formule en texte brut bien formée : parenthèses équilibrées, un signe d'opération, et pas de mot
+/// de plus de trois lettres hors fonctions (`sin`, `lim`…).
+fn bien_forme(latex: &str) -> bool {
+    let mut prof = 0i32;
+    for c in latex.chars() {
+        match c {
+            '(' => prof += 1,
+            ')' => prof -= 1,
+            _ => {}
+        }
+        if prof < 0 {
+            return false;
+        }
+    }
+    let sans_commandes: String = latex
+        .split('\\')
+        .map(|m| m.trim_start_matches(|c: char| c.is_ascii_alphabetic()))
+        .collect();
+    let mots_longs = sans_commandes
+        .split(|c: char| !c.is_alphabetic())
+        .any(|m| m.chars().count() > 3 && !["sin", "cos", "tan", "lim", "exp", "log"].contains(&m));
+    prof == 0 && !mots_longs && latex.chars().any(|c| "=+<>^".contains(c))
+}
+
 /// Deux LaTeX égaux, aux espaces près.
 fn meme_latex(a: &str, b: &str) -> bool {
     let n = |s: &str| s.chars().filter(|c| !c.is_whitespace()).collect::<String>();
@@ -340,21 +365,70 @@ fn lire_demande(
     d: &Demande,
 ) -> Result<Lecture, String> {
     if d.mode == Mode::Formule {
-        return match (lire_formule(signes, mfr, dossier, &d.traits, None), &d.repli) {
-            (Some(f), Some(r)) if f.confiance < STRUCTURE_SURE => {
-                // Google a lu la ligne : sa lecture reste, la formule devient une lecture voisine.
-                let mut r = r.clone();
-                r.alternatives.insert(0, f.texte);
-                Ok(r)
-            }
-            (Some(f), _) => Ok(f),
-            (None, Some(r)) => Ok(r.clone()),
-            (None, None) => Err(if formules::present(dossier) {
-                "formule illisible".into()
-            } else {
-                SANS_MODELE.into()
-            }),
+        let f = lire_formule(signes, mfr, dossier, &d.traits, None);
+        let Some(r) = &d.repli else {
+            // Une formule demandée (mode Formule, ou entourée de deux `$` écrits à la main) : la meilleure
+            // lecture est proposée, même douteuse (on la corrige d'un toucher).
+            return match f {
+                Some(mut f) => {
+                    f.confiance = f.confiance.max(STRUCTURE_SURE);
+                    Ok(f)
+                }
+                None => Err(if formules::present(dossier) {
+                    "formule illisible".into()
+                } else {
+                    SANS_MODELE.into()
+                }),
+            };
         };
+        // Après Google : ses candidats écrits en LaTeX, comparés aux lectures de formule (ADR 0014).
+        let candidats: Vec<String> = std::iter::once(&r.texte)
+            .chain(&r.alternatives)
+            .filter(|c| aiguillage::est_maths(c))
+            .map(|c| aiguillage::vers_latex(c))
+            .collect();
+        let candidat_propre = candidats.iter().find(|c| bien_forme(c)).cloned();
+        if let Some(f) = &f {
+            let latex = f.texte.trim_matches('$');
+            // Deux lecteurs indépendants d'accord : sûr.
+            if candidats.iter().any(|c| meme_latex(c, latex)) {
+                let mut f = f.clone();
+                f.confiance = f.confiance.max(0.95);
+                return Ok(f);
+            }
+            if f.confiance >= STRUCTURE_SURE {
+                return Ok(f.clone());
+            }
+            // Google lit bien les caractères quand il n'y cherche pas des mots : un candidat de forme
+            // mathématique (pas de mot français) l'emporte sur une formule douteuse.
+            if let Some(c) = &candidat_propre {
+                return Ok(Lecture {
+                    texte: format!("${c}$"),
+                    confiance: 0.75,
+                    alternatives: std::iter::once(f.texte.clone())
+                        .chain(f.alternatives.clone())
+                        .collect(),
+                    confiances: Vec::new(),
+                });
+            }
+            // La ligne est une formule (Google y lit des non-mots autour d'un `=`) : la meilleure lecture de
+            // formule, à vérifier d'un toucher, plutôt qu'un texte inventé.
+            if aiguillage::est_maths(&r.texte) {
+                let mut f = f.clone();
+                f.confiance = f.confiance.max(STRUCTURE_SURE);
+                f.alternatives.push(r.texte.clone());
+                return Ok(f);
+            }
+        }
+        if let Some(c) = candidat_propre {
+            return Ok(Lecture {
+                texte: format!("${c}$"),
+                confiance: 0.75,
+                alternatives: vec![r.texte.clone()],
+                confiances: Vec::new(),
+            });
+        }
+        return Ok(r.clone());
     }
     // Un bloc sur plusieurs rangées (fraction, limite, matrice) n'est pas une ligne de texte : lu en formule,
     // ou laissé à l'encre s'il n'est pas compris (jamais un texte inventé).
@@ -376,7 +450,7 @@ fn lire_demande(
         let sure = structure
             .as_ref()
             .is_some_and(|f| f.confiance >= 0.8 && a_des_maths(&f.latex));
-        if sure || ressemble_formule(&l.texte) {
+        if sure || ressemble_formule(&l.texte) || aiguillage::est_maths(&l.texte) {
             if let Some(f) = lire_formule(signes, mfr, dossier, &d.traits, structure) {
                 if f.confiance >= l.confiance.min(STRUCTURE_SURE) || sure {
                     let mut f = f;
@@ -424,7 +498,15 @@ mod tests {
 
 #[cfg(test)]
 mod tests_formule {
-    use super::ressemble_formule;
+    use super::{bien_forme, ressemble_formule};
+
+    #[test]
+    fn candidats_de_google() {
+        assert!(bien_forme("f(x)=mx+p"));
+        assert!(!bien_forme("pa fo= moto"));
+        assert!(!bien_forme("f(x=2"));
+        assert!(bien_forme("\\sin(x)=0"));
+    }
 
     #[test]
     fn texte_ou_formule() {

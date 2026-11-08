@@ -506,6 +506,7 @@ impl Fanoratana {
                     widgets::section(ui, t(l, T::LectureEcriture));
                     self.reglage_lecture_google(ui);
                     self.reglage_modele_formules(ui);
+                    ui.label(RichText::new(t(l, T::AstuceDollar)).small().color(teinte::DOUX));
                     ui.separator();
                     widgets::section(ui, t(l, T::Langue));
                     ui.horizontal(|ui| {

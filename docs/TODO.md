@@ -104,6 +104,8 @@ Ordre de priorité (chaque étape est utilisable seule) :
 
 ## 4. Lecture (priorité)
 
+- ✅ Texte ou formule (ADR 0014) : `$` manuscrits, aiguillage automatique, ℝ et variables dans les phrases (« pa fo= moto » pour `f(x)=mx+p`).
+
 - ✅ Page de cours lue par blocs (`fano_ink::grouper_blocs`) : fraction, `lim` et sa borne, exposant, matrice d'un seul tenant ;
   titre souligné, paragraphe serré et fraction dans une phrase restent à part ; barre de fraction jamais prise pour un dessin.
 - ⬜ Essai sur le Pad 7 d'une vraie page de cours (texte + formules + figures) ; exporter l'encre de ses leçons pour en faire des tests.

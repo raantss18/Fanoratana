@@ -824,14 +824,15 @@ impl Fanoratana {
             let traits: Vec<Trait> = restants.into_iter().filter(|t| !aretes.contains(t)).collect();
             // 3ᵉ passe : l'écriture, ligne par ligne.
             let boites: Vec<Rect> = traits.iter().map(Trait::bbox).collect();
-            let mut morceaux: Vec<Vec<Trait>> = Vec::new();
+            // Chaque morceau : ses traits, un mode imposé (formule entre deux `$`), et l'encre à effacer en plus
+            // (les `$` eux-mêmes).
+            let mut morceaux: Vec<(Vec<Trait>, Option<fano_reco::Mode>, Vec<Trait>)> = Vec::new();
             // Par blocs : une fraction, `lim` et sa borne, une matrice restent d'un seul tenant.
             for ligne in fano_ink::grouper_blocs(&boites) {
-                morceaux.extend(couper_ligne(
-                    ligne.traits.iter().map(|&i| traits[i].clone()).collect(),
-                ));
+                let ts: Vec<Trait> = ligne.traits.iter().map(|&i| traits[i].clone()).collect();
+                morceaux.extend(decouper_dollars(ts));
             }
-            for tous in morceaux {
+            for (tous, mode_impose, a_effacer) in morceaux {
                 if tous.is_empty() {
                     continue;
                 }
@@ -865,11 +866,11 @@ impl Fanoratana {
                 }
                 let id = self.prochain;
                 self.prochain += 1;
-                let mode = match self.mode_lecture {
+                let mode = mode_impose.unwrap_or(match self.mode_lecture {
                     crate::app::ModeLecture::Auto => fano_reco::Mode::Auto,
                     crate::app::ModeLecture::Texte => fano_reco::Mode::Texte,
                     crate::app::ModeLecture::Formule => fano_reco::Mode::Formule,
-                };
+                });
                 // La lecture Google (ML Kit, comme Gboard) quand elle est prête ; sinon la lecture libre.
                 // Une formule demandée explicitement va au lecteur des formules.
                 let google = mode != fano_reco::Mode::Formule && self.google_pret();
@@ -888,6 +889,7 @@ impl Fanoratana {
                 let barre = !barres.is_empty();
                 let mut tous = tous;
                 tous.extend(barres);
+                tous.extend(a_effacer);
                 self.lectures.insert(
                     id,
                     EnLecture {
@@ -935,8 +937,12 @@ impl Fanoratana {
             if let Ok(lecture) = &r {
                 // Une formule se relit à sa structure (modèle des signes, embarqué) ; si elle doute, la
                 // lecture de Google revient telle quelle.
-                let formule = fano_reco::ressemble_formule(&lecture.texte)
-                    && self.mode_lecture == crate::app::ModeLecture::Auto;
+                // Un candidat de Google qui a la forme d'une formule (« pa fo= moto » : des non-mots autour
+                // d'un `=`) suffit (ADR 0014).
+                let formule = self.mode_lecture == crate::app::ModeLecture::Auto
+                    && std::iter::once(&lecture.texte)
+                        .chain(&lecture.alternatives)
+                        .any(|c| fano_reco::ressemble_formule(c) || fano_reco::aiguillage::est_maths(c));
                 if formule {
                     if let (Some(lecteur), Some(l)) = (&self.lecteur, self.lectures.get(&id)) {
                         lecteur.lire_formule_sinon(id, &l.lus, lecture.clone());
@@ -999,6 +1005,14 @@ impl Fanoratana {
                 return;
             }
             let mut lecture = lecture;
+            // Dans une phrase, les maths se mettent d'elles-mêmes entre `$` (lettre seule, ℝ, f(x)).
+            if !lecture.texte.trim_start().starts_with('$') {
+                let m = fano_reco::aiguillage::mathematiser(&lecture.texte);
+                if m != lecture.texte {
+                    let brut = std::mem::replace(&mut lecture.texte, m);
+                    lecture.alternatives.insert(0, brut);
+                }
+            }
             if l.barre {
                 let interieur = lecture
                     .texte
@@ -1429,6 +1443,62 @@ pub(crate) fn forme_isolee(t: &Trait, ligne: &[Trait]) -> Option<fano_ink::Forme
         return None;
     }
     Some(f)
+}
+
+/// La règle des `$` écrits à la main (comme en LaTeX) : ce qui est entre deux `$` d'une ligne est une
+/// formule, lue comme telle ; les `$` sont effacés à la mise au propre. Le reste de la ligne est lu
+/// normalement. Un `$` ouvert sans son second : la suite attend (on écrit peut-être encore la formule).
+pub(crate) fn decouper_dollars(ts: Vec<Trait>) -> Vec<(Vec<Trait>, Option<fano_reco::Mode>, Vec<Trait>)> {
+    let pts: Vec<Vec<Point>> = ts
+        .iter()
+        .map(|t| t.points.iter().map(PointEncre::pos).collect())
+        .collect();
+    let d = fano_ink::dollars(&pts);
+    if d.is_empty() {
+        return couper_ligne(ts)
+            .into_iter()
+            .map(|m| (m, None, Vec::new()))
+            .collect();
+    }
+    let marques: Vec<(f32, f32)> = d
+        .iter()
+        .map(|&(a, b)| {
+            let r = ts[a].bbox().union(ts[b].bbox());
+            (r.min.x, r.max.x)
+        })
+        .collect();
+    let dans_un_dollar = |i: usize| d.iter().any(|&(a, b)| a == i || b == i);
+    let paires = marques.len() / 2;
+    let mut textes: Vec<Vec<Trait>> = vec![Vec::new(); paires + 1];
+    let mut formules: Vec<Vec<Trait>> = vec![Vec::new(); paires];
+    for (i, t) in ts.iter().enumerate() {
+        if dans_un_dollar(i) {
+            continue;
+        }
+        let cx = t.bbox().center().x;
+        let k = marques.iter().filter(|m| m.1 < cx).count();
+        if k % 2 == 0 {
+            textes[k / 2].push(t.clone());
+        } else if k / 2 < paires {
+            formules[k / 2].push(t.clone());
+        }
+        // Après un `$` ouvert sans second : on attend.
+    }
+    let mut res = Vec::new();
+    for (k, t) in textes.into_iter().enumerate() {
+        res.extend(couper_ligne(t).into_iter().map(|m| (m, None, Vec::new())));
+        if let Some(f) = formules.get(k) {
+            let effacer: Vec<Trait> = [d[2 * k], d[2 * k + 1]]
+                .iter()
+                .flat_map(|&(a, b)| [ts[a].clone(), ts[b].clone()])
+                .collect();
+            if !f.is_empty() {
+                res.push((f.clone(), Some(fano_reco::Mode::Formule), effacer));
+            }
+        }
+    }
+    res.retain(|m| !m.0.is_empty());
+    res
 }
 
 /// Coupe une ligne là où un grand vide sépare les traits (étiquettes d'un arbre, deux colonnes) :

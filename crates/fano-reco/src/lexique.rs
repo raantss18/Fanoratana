@@ -42,6 +42,11 @@ fn lexique() -> &'static Lexique {
     })
 }
 
+/// Ce mot (en minuscules) est-il dans le lexique français ?
+pub fn est_un_mot(mot: &str) -> bool {
+    lexique().freq.contains_key(&mot.to_lowercase())
+}
+
 /// Lettres que l'écriture manuscrite confond souvent (dans les deux sens).
 fn confusables(a: char, b: char) -> bool {
     const PAIRES: [(char, char); 23] = [

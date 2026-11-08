@@ -173,6 +173,7 @@ textes! {
     MajAndroid => "Android va demander de confirmer l'installation.", "Android will ask you to confirm the installation.";
     MajErreur => "Mise à jour impossible :", "Could not update:";
     APropos => "À propos", "About";
+    AstuceDollar => "Astuce : une formule écrite entre deux $ à la main ($ f(x)=mx+p $) est toujours lue en formule ; les $ disparaissent à la mise au propre.", "Tip: a formula handwritten between two $ signs ($ f(x)=mx+p $) is always read as a formula; the $ signs disappear when tidied up.";
     AProposTexte => "Cahier de cours manuscrit pour enseignants de toutes les matières : on écrit au doigt, au stylet ou au clavier, et la page se met au propre.", "A handwritten course notebook for teachers of every subject: write with a finger, a stylus or the keyboard, and the page tidies itself up.";
     Autrice => "Conçu par", "Made by";
     Courriel => "E-mail", "E-mail";
