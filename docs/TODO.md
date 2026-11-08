@@ -23,6 +23,10 @@
   fusionnées (« XA »), Ā lu « −A », faux gras → branches = formes (1,6 × la médiane des lettres), lignes coupées aux grands
   vides, barre au-dessus = `\overline`, seuil du gras 1,6 (`arbre_de_probabilites`, `etiquettes_eloignees_lues_a_part`, `barre_de_a_barre`).
 - ✅ Boutons du haut cachés sous la barre de notification d'Android : les coins respectent les marges du système.
+- ✅ Arbre retracé (Pad 7, 2026-11-08) : branche un peu courbée restée dans le texte (« BΣ ») → deux bras courbés
+  acceptés (`branche_un_peu_courbee`) ; C seuls lus « l », « ( » → majuscule au bout d'une branche
+  (`etiquette_d_arbre_en_majuscule`) ; « Mathimaliques » → « Mathématiques » ; soulignement du titre pris pour une ligne
+  → il souligne ; boutons de zoom « □ » → « + » et « − ».
 - 🟡 « Calculer cette expression » lu « Calmer cette expetion » : limite du modèle sur la cursive (§ 3, priorité 1).
 - 🟡 « Je ne sais pas lire » lu « Je ne sors pas line » : « sors » est un vrai mot ; il faudra un modèle de langue (suite de mots)
   ou un modèle d'écriture affiné sur la cursive scolaire française (§ 3).

@@ -44,7 +44,7 @@ fn lexique() -> &'static Lexique {
 
 /// Lettres que l'écriture manuscrite confond souvent (dans les deux sens).
 fn confusables(a: char, b: char) -> bool {
-    const PAIRES: [(char, char); 21] = [
+    const PAIRES: [(char, char); 23] = [
         ('r', 'n'),
         ('o', 'e'),
         ('o', 'a'),
@@ -59,6 +59,8 @@ fn confusables(a: char, b: char) -> bool {
         ('h', 'b'),
         ('t', 'f'),
         ('g', 'q'),
+        ('l', 't'),
+        ('i', 'é'),
         ('e', 'é'),
         ('e', 'è'),
         ('e', 'ê'),
@@ -146,7 +148,7 @@ pub fn corriger(texte: &str, confiances: &[f32]) -> String {
             continue;
         }
         let debut = i;
-        while i < car.len() && (car[i].is_alphabetic() || car[i] == '\'' || car[i] == '-') {
+        while i < car.len() && (car[i].is_alphabetic() || car[i] == '\'') {
             i += 1;
         }
         let mot: String = car[debut..i].iter().collect();
@@ -191,6 +193,8 @@ mod tests {
         // Écriture au stylet d'Antsa, Pad 7, 2026-11-08.
         let t = "fe voux vor";
         assert_eq!(corriger(t, &incertain(t)), "je veux voir");
+        let t = "I-Mathimaliques";
+        assert_eq!(corriger(t, &incertain(t)), "I-Mathématiques");
         let t = "1- Impontant";
         assert_eq!(corriger(t, &incertain(t)), "1- Important");
     }

@@ -331,13 +331,13 @@ impl Fanoratana {
         // Alternative aux gestes à deux doigts (WCAG 2.2, critère 2.5.7), comme dans Fikajiana.
         ui.horizontal(|ui| {
             if ui
-                .button(RichText::new(format!("＋ {}", t(l, T::ZoomPlus))))
+                .button(RichText::new(format!("+ {}", t(l, T::ZoomPlus))))
                 .clicked()
             {
                 self.zoom = (self.zoom * 1.25).min(5.0);
             }
             if ui
-                .button(RichText::new(format!("－ {}", t(l, T::ZoomMoins))))
+                .button(RichText::new(format!("− {}", t(l, T::ZoomMoins))))
                 .clicked()
             {
                 self.zoom = (self.zoom / 1.25).max(0.25);

@@ -794,7 +794,13 @@ impl Fanoratana {
             let mut formes: Vec<Trait> = Vec::new();
             for ligne in fano_ink::grouper_lignes(&boites) {
                 let tous: Vec<Trait> = ligne.traits.iter().map(|&i| traits[i].clone()).collect();
-                formes.extend(tous.iter().filter(|t| forme_isolee(t, &tous).is_some()).cloned());
+                let bbox = tous.iter().fold(Rect::NOTHING, |r, t| r.union(t.bbox()));
+                // Un trait sous des mots est leur soulignement, pas une ligne de dessin.
+                formes.extend(
+                    tous.iter()
+                        .filter(|t| forme_isolee(t, &tous).is_some() && !est_soulignement(t, &bbox, &tous))
+                        .cloned(),
+                );
             }
             if !formes.is_empty() {
                 self.convertir_formes(page, &formes);
@@ -1009,6 +1015,10 @@ impl Fanoratana {
         }
         let mut lecture = lecture;
         lecture.texte = fano_render::expr::corriger_definition(&lecture.texte);
+        // Une étiquette d'une lettre au bout d'une branche d'arbre est un événement : une majuscule.
+        if self.au_bout_d_une_branche(page, &b) {
+            lecture = majuscule_d_etiquette(lecture);
+        }
         let fonction = !crate::editeur::definitions(&lecture.texte).is_empty();
         let gras = self.est_gras(page, &lettres);
         // Taille : la hauteur de l'écriture ; un mot sans hampe ni jambage est plus bas.
@@ -1077,6 +1087,29 @@ impl Fanoratana {
                 (sous && recouvre && large).then_some(i)
             }
             _ => None,
+        })
+    }
+
+    /// Le texte en `b` est-il au bout d'une branche (un bout de segment ou de « < » juste à sa gauche) ?
+    fn au_bout_d_une_branche(&self, page: usize, b: &Rect) -> bool {
+        let Some(p) = self.ouverte.as_ref().and_then(|o| o.lecon.pages.get(page)) else {
+            return false;
+        };
+        let h = b.height().max(20.0);
+        p.elements.iter().any(|e| match e {
+            Element::Forme(f)
+                if matches!(
+                    f.kind,
+                    FormeKind::Segment | FormeKind::Polyligne | FormeKind::Fleche
+                ) =>
+            {
+                f.points.iter().any(|q| {
+                    q.x <= b.min.x + h * 0.3
+                        && b.min.x - q.x <= h * 1.8
+                        && (q.y - b.center().y).abs() <= h * 1.2
+                })
+            }
+            _ => false,
         })
     }
 
@@ -1324,6 +1357,28 @@ pub(crate) fn couper_ligne(mut traits: Vec<Trait>) -> Vec<Vec<Trait>> {
     res
 }
 
+/// Une étiquette d'arbre lue « l », « ( », « 1 »… : si une lecture voisine est une majuscule seule, elle
+/// gagne (les C d'Antsa lus « l » et « ( », Pad 7, 2026-11-08). Rien n'est inventé.
+pub(crate) fn majuscule_d_etiquette(mut l: fano_reco::Lecture) -> fano_reco::Lecture {
+    let seule_majuscule = |s: &str| {
+        let mut c = s.trim().chars();
+        matches!((c.next(), c.next()), (Some(x), None) if x.is_uppercase())
+    };
+    let texte = l.texte.trim().to_owned();
+    if texte.chars().count() == 1 && !seule_majuscule(&texte) {
+        if let Some(i) = l.alternatives.iter().position(|a| seule_majuscule(a)) {
+            let m = l.alternatives.remove(i);
+            l.alternatives
+                .insert(0, std::mem::replace(&mut l.texte, m.trim().to_owned()));
+        } else if let Some(c) = texte.chars().next().filter(|c| c.is_lowercase()) {
+            // Sinon, la même lettre en capitale (un « c » au bout d'une branche est « C »).
+            l.alternatives
+                .insert(0, std::mem::replace(&mut l.texte, c.to_uppercase().collect()));
+        }
+    }
+    l
+}
+
 /// Un petit trait plat posé au-dessus des lettres : la barre de Ā (événement contraire, complémentaire).
 pub(crate) fn est_barre_dessus(t: &Trait, tous: &[Trait]) -> bool {
     let tb = t.bbox();
@@ -1500,6 +1555,28 @@ mod tests {
         assert!(
             !est_barre_dessus(&moins, &[a, moins.clone()]),
             "un « − » à côté n'est pas une barre"
+        );
+    }
+
+    #[test]
+    fn etiquette_d_arbre_en_majuscule() {
+        let l = |t: &str, alt: &[&str]| fano_reco::Lecture {
+            texte: t.into(),
+            confiance: 0.5,
+            alternatives: alt.iter().map(|s| s.to_string()).collect(),
+            confiances: vec![],
+        };
+        assert_eq!(majuscule_d_etiquette(l("(", &["C", "("])).texte, "C");
+        assert_eq!(majuscule_d_etiquette(l("c", &[])).texte, "C");
+        assert_eq!(
+            majuscule_d_etiquette(l("A", &["4"])).texte,
+            "A",
+            "une majuscule reste"
+        );
+        assert_eq!(
+            majuscule_d_etiquette(l("0,3", &[])).texte,
+            "0,3",
+            "une probabilité reste"
         );
     }
 }

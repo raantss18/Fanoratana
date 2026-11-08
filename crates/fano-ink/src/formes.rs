@@ -83,6 +83,10 @@ pub fn reconnaitre_forme(trace: &[Point]) -> Option<FormeReconnue> {
         if let Some(f) = fleche_un_trait(&pts, &coins) {
             return Some(f);
         }
+        // Deux bras partant d'un sommet (« < », branche d'arbre), même un peu courbés.
+        if let Some(f) = deux_bras(&pts) {
+            return Some(f);
+        }
         // Ligne brisée nette.
         if coins.len() >= 3 && coins.len() <= 8 {
             let sommets: Vec<Point> = coins.iter().map(|&i| pts[i]).collect();
@@ -215,6 +219,34 @@ fn secants(a: Point, b: Point, c: Point, d: Point) -> bool {
     let o = |p: Point, q: Point, r: Point| (q - p).cross(r - p);
     let (d1, d2, d3, d4) = (o(a, b, c), o(a, b, d), o(c, d, a), o(c, d, b));
     (d1 * d2 < 0.0) && (d3 * d4 < 0.0)
+}
+
+/// Deux bras à peu près droits qui partent d'un même sommet (« < », « > », « ∧ ») : une branche
+/// d'arbre. Le sommet est le point le plus éloigné de la corde ; chaque bras peut être un peu courbé
+/// (chemin ≤ 1,2 × sa corde), l'angle entre eux entre 20° et 150°.
+fn deux_bras(pts: &[Point]) -> Option<FormeReconnue> {
+    let (a, b) = (pts[0], *pts.last()?);
+    let corde = b - a;
+    let (iv, _) = pts
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (i, corde.norm().cross(*p - a).abs()))
+        .max_by(|x, y| x.1.total_cmp(&y.1))?;
+    if iv < 2 || iv + 2 >= pts.len() {
+        return None;
+    }
+    let v = pts[iv];
+    let chemin = |s: &[Point]| s.windows(2).map(|w| w[0].dist(w[1])).sum::<f32>();
+    let (l1, l2) = (a.dist(v), v.dist(b));
+    if l1 < 20.0 || l2 < 20.0 || chemin(&pts[..=iv]) > l1 * 1.2 || chemin(&pts[iv..]) > l2 * 1.2 {
+        return None;
+    }
+    let cos = (a - v).norm().dot((b - v).norm());
+    let angle = cos.clamp(-1.0, 1.0).acos().to_degrees();
+    (20.0..=150.0).contains(&angle).then(|| FormeReconnue {
+        kind: FormeKind::Polyligne,
+        points: vec![a, v, b],
+    })
 }
 
 /// Une pointe de flèche dessinée en un second trait près du bout d'un segment.
@@ -632,6 +664,34 @@ mod tests_signature {
             assert!(!est_trace_libre(&r), "{nom} : {:?}", mesures(&r));
             assert!(reconnaitre_forme(&pts).is_some(), "{nom}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests_branches {
+    use super::*;
+
+    #[test]
+    fn branche_un_peu_courbee() {
+        // La branche de B relevée sur le Pad 7 (2026-11-08) : deux bras légèrement concaves.
+        let mut pts = Vec::new();
+        for i in 0..=20 {
+            let t = i as f32 / 20.0;
+            pts.push(Point::new(
+                300.0 - 110.0 * t,
+                100.0 + 70.0 * t + 8.0 * (t * std::f32::consts::PI).sin(),
+            ));
+        }
+        for i in 1..=20 {
+            let t = i as f32 / 20.0;
+            pts.push(Point::new(
+                190.0 + 115.0 * t,
+                170.0 + 60.0 * t - 8.0 * (t * std::f32::consts::PI).sin(),
+            ));
+        }
+        let f = reconnaitre_forme(&pts).expect("une branche");
+        assert_eq!(f.kind, FormeKind::Polyligne);
+        assert_eq!(f.points.len(), 3);
     }
 }
 
