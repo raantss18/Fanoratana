@@ -44,6 +44,16 @@ pub fn reconnaitre_forme(trace: &[Point]) -> Option<FormeReconnue> {
             return Some(f);
         }
     }
+    // Un rond (même irrégulier, même s'il dépasse son départ) avant le filtre des tracés libres, s'il
+    // n'a pas de coins nets : un rectangle aux coins arrondis reste un rectangle.
+    if let Some(e) = ellipse(&pts) {
+        let coins = coins_shortstraw(&pts);
+        let poly = sommets_fermes(&pts, &coins);
+        let poly_net = poly.len() >= 3 && poly.len() <= 6 && ecart_polygone(&pts, &poly) < diag * 0.04;
+        if !poly_net {
+            return Some(e);
+        }
+    }
     // Une signature, un mot en cursive ou un dessin libre ne deviennent jamais une forme.
     if est_trace_libre(&pts) {
         return None;
@@ -62,6 +72,12 @@ pub fn reconnaitre_forme(trace: &[Point]) -> Option<FormeReconnue> {
     }
 
     let coins = coins_shortstraw(&pts);
+    // Un rond qui dépasse son point de départ a ses bouts éloignés, mais il fait le tour : c'est un rond.
+    if !ferme {
+        if let Some(e) = ellipse(&pts) {
+            return Some(e);
+        }
+    }
     if !ferme {
         // Flèche en un trait : un long segment, puis un aller-retour court (la pointe).
         if let Some(f) = fleche_un_trait(&pts, &coins) {
@@ -153,9 +169,9 @@ pub fn mesures(pts: &[Point]) -> (f32, usize, usize) {
     let grossier = reechantillonner(pts, (r.width().hypot(r.height()) / 20.0).max(PAS_MIN));
     let pts = &grossier[..];
     let mut total = 0.0;
-    let mut inversions = 0;
-    let mut sens_prec = 0.0f32;
-    let mut cumul_sens = 0.0f32;
+    // Les virages, regroupés par sens de rotation ; une ondulation de la main ne fait pas un virage :
+    // seuls comptent les virages d'au moins 0,8 rad (une boucle dans l'autre sens).
+    let mut virages: Vec<f32> = Vec::new();
     for w in pts.windows(3) {
         let (a, b) = (w[1] - w[0], w[2] - w[1]);
         if a.len() < 1e-3 || b.len() < 1e-3 {
@@ -163,18 +179,22 @@ pub fn mesures(pts: &[Point]) -> (f32, usize, usize) {
         }
         let ang = a.cross(b).atan2(a.dot(b));
         total += ang.abs();
-        // Un changement de sens de rotation qui dure (pas un tremblement) : une boucle dans l'autre sens.
-        if ang.abs() > 0.05 {
-            if sens_prec != 0.0 && ang.signum() != sens_prec.signum() {
-                if cumul_sens.abs() > 1.2 {
-                    inversions += 1;
-                }
-                cumul_sens = 0.0;
-            }
-            sens_prec = ang;
-            cumul_sens += ang;
+        if ang.abs() < 0.05 {
+            continue;
+        }
+        match virages.last_mut() {
+            Some(v) if v.signum() == ang.signum() => *v += ang,
+            _ => virages.push(ang),
         }
     }
+    let mut grands: Vec<f32> = Vec::new();
+    for v in virages.into_iter().filter(|v| v.abs() >= 0.8) {
+        match grands.last_mut() {
+            Some(g) if g.signum() == v.signum() => *g += v,
+            _ => grands.push(v),
+        }
+    }
+    let inversions = grands.len().saturating_sub(1);
     let n = pts.len();
     let mut croisements = 0;
     for i in 0..n.saturating_sub(1) {
@@ -373,8 +393,8 @@ fn ellipse(pts: &[Point]) -> Option<FormeReconnue> {
     if rx < 2.0 || ry < 2.0 {
         return None;
     }
-    // Presque rond → cercle.
-    if (rx - ry).abs() < 0.15 * rx.max(ry) {
+    // Presque rond → cercle (un rond fait à main levée est rarement parfait : jusqu'à 25 % d'écart).
+    if (rx - ry).abs() < 0.25 * rx.max(ry) {
         let m = (rx + ry) / 2.0;
         rx = m;
         ry = m;
@@ -405,7 +425,7 @@ fn ellipse(pts: &[Point]) -> Option<FormeReconnue> {
         }
         angle_total += d;
     }
-    (ecart < 0.12 && angle_total.abs() > std::f32::consts::TAU * 0.8).then(|| FormeReconnue {
+    (ecart < 0.18 && angle_total.abs() > std::f32::consts::TAU * 0.8).then(|| FormeReconnue {
         kind: FormeKind::Ellipse,
         points: vec![c, Point::new(rx, ry)],
     })
@@ -612,6 +632,42 @@ mod tests_signature {
             assert!(!est_trace_libre(&r), "{nom} : {:?}", mesures(&r));
             assert!(reconnaitre_forme(&pts).is_some(), "{nom}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests_ronds {
+    use super::*;
+
+    /// Un rond à main levée : rayon irrégulier (±8 %), légèrement ovale, qui dépasse son départ.
+    fn rond(ovale: f32, tours: f32) -> Vec<Point> {
+        (0..=120)
+            .map(|i| {
+                let a = i as f32 / 120.0 * std::f32::consts::TAU * tours;
+                let r = 80.0 * (1.0 + 0.08 * (3.0 * a).sin() + 0.03 * (7.0 * a).cos());
+                Point::new(200.0 + r * ovale * a.cos(), 200.0 + r * a.sin())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn un_rond_devient_un_cercle() {
+        for (ovale, tours) in [(1.0, 1.0), (1.18, 1.0), (0.85, 1.12), (1.1, 1.2)] {
+            let f =
+                reconnaitre_forme(&rond(ovale, tours)).unwrap_or_else(|| panic!("rien pour {ovale} {tours}"));
+            assert_eq!(f.kind, FormeKind::Ellipse, "{ovale} {tours}");
+            assert!(
+                (f.points[1].x - f.points[1].y).abs() < 1e-3,
+                "cercle attendu pour {ovale} {tours}"
+            );
+        }
+    }
+
+    #[test]
+    fn un_ovale_franc_reste_une_ellipse() {
+        let f = reconnaitre_forme(&rond(1.6, 1.0)).unwrap();
+        assert_eq!(f.kind, FormeKind::Ellipse);
+        assert!((f.points[1].x - f.points[1].y).abs() > 10.0);
     }
 }
 

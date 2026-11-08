@@ -22,55 +22,35 @@ impl Alea {
     }
 }
 
-/// Un segment tremblé : rend deux polylignes (les deux passages).
+/// Un segment net, en un seul trait : les bouts exacts, une courbure à peine visible (le trait reste
+/// vivant sans paraître doublé — « une ligne en fait deux », Antsa, 2026-11-08).
 pub fn segment(a: Point, b: Point, alea: &mut Alea, rugosite: f32) -> Vec<Vec<Point>> {
     let l = a.dist(b);
-    let amp = (l * 0.012 + 0.6).min(3.0) * rugosite;
-    (0..2)
-        .map(|passe| {
-            let ecart = if passe == 0 { amp } else { amp * 1.4 };
-            let a2 = a + Point::new(alea.sym(), alea.sym()) * ecart;
-            let b2 = b + Point::new(alea.sym(), alea.sym()) * ecart;
-            let n = (b2 - a2).norm().perp();
-            let bombe = alea.sym() * (l * 0.012).min(4.0) * rugosite;
-            let pas = ((l / 12.0) as usize).clamp(4, 40);
-            (0..=pas)
-                .map(|i| {
-                    let t = i as f32 / pas as f32;
-                    a2.lerp(b2, t) + n * (bombe * 4.0 * t * (1.0 - t))
-                })
-                .collect()
-        })
-        .collect()
+    let n = (b - a).norm().perp();
+    let bombe = alea.sym() * (l * 0.004).min(1.5) * rugosite;
+    let pas = ((l / 12.0) as usize).clamp(2, 40);
+    vec![
+        (0..=pas)
+            .map(|i| {
+                let t = i as f32 / pas as f32;
+                a.lerp(b, t) + n * (bombe * 4.0 * t * (1.0 - t))
+            })
+            .collect(),
+    ]
 }
 
-/// Une ellipse tremblée (centre, rayons), en deux passages qui se chevauchent un peu.
-pub fn ellipse(c: Point, rx: f32, ry: f32, alea: &mut Alea, rugosite: f32) -> Vec<Vec<Point>> {
+/// Une ellipse (ou un cercle) nette, en un seul trait fermé.
+pub fn ellipse(c: Point, rx: f32, ry: f32, _alea: &mut Alea, _rugosite: f32) -> Vec<Vec<Point>> {
     let perim = std::f32::consts::TAU * ((rx * rx + ry * ry) / 2.0).sqrt();
-    let n = ((perim / 6.0) as usize).clamp(24, 160);
-    (0..2)
-        .map(|passe| {
-            let depart = alea.sym() * 0.6;
-            let tour = std::f32::consts::TAU * (1.0 + 0.06 * (1.0 + alea.sym()));
-            let (drx, dry) = (
-                alea.sym() * rx * 0.02 * rugosite,
-                alea.sym() * ry * 0.02 * rugosite,
-            );
-            let ph = alea.sym() * 3.0;
-            let amp = (0.8 + passe as f32 * 0.5) * rugosite;
-            (0..=n)
-                .map(|i| {
-                    let t = i as f32 / n as f32;
-                    let a = depart + tour * t;
-                    let wobble = (a * 3.0 + ph).sin() * amp;
-                    Point::new(
-                        c.x + (rx + drx + wobble) * a.cos(),
-                        c.y + (ry + dry + wobble) * a.sin(),
-                    )
-                })
-                .collect()
-        })
-        .collect()
+    let n = ((perim / 4.0) as usize).clamp(32, 240);
+    vec![
+        (0..=n)
+            .map(|i| {
+                let a = i as f32 / n as f32 * std::f32::consts::TAU;
+                Point::new(c.x + rx * a.cos(), c.y + ry * a.sin())
+            })
+            .collect(),
+    ]
 }
 
 /// Les deux traits d'une pointe de flèche au bout `b` d'un segment venant de `a`.
@@ -101,6 +81,17 @@ mod tests {
             1.0,
         );
         assert_eq!(a, b);
-        assert!(a.iter().flatten().all(|p| p.y.abs() < 6.0));
+        assert_eq!(
+            a.len(),
+            1,
+            "un seul trait : une ligne ne doit jamais paraître doublée"
+        );
+        assert!(a.iter().flatten().all(|p| p.y.abs() < 2.0));
+        let e = ellipse(Point::new(0.0, 0.0), 50.0, 50.0, &mut Alea::new(1), 1.0);
+        assert_eq!(e.len(), 1);
+        assert!(
+            e[0].iter().all(|p| (p.len() - 50.0).abs() < 0.01),
+            "un cercle est un cercle"
+        );
     }
 }

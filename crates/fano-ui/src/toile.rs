@@ -62,7 +62,8 @@ impl Fanoratana {
     }
 
     pub(crate) fn toile(&mut self, ui: &mut egui::Ui) {
-        let zone = ui.max_rect();
+        // La place qui reste sous le bandeau des mises à jour (la feuille ne le recouvre jamais).
+        let zone = ui.available_rect_before_wrap();
         let format = self.ouverte.as_ref().map(|o| o.lecon.format).unwrap_or_default();
         let (w, h) = format.taille();
         // Rotation, fenêtre flottante, écran partagé : la feuille se recadre.
@@ -388,9 +389,8 @@ impl Fanoratana {
             let pointeur = self.plateforme.pointeur(self.toucher);
             let doigt_deplace = pointeur == Pointeur::Doigt && !self.reglages.doigt_ecrit;
             self.geste = match self.outil {
-                _ if doigt_deplace && matches!(self.outil, Outil::Ecrire | Outil::Formes) => {
-                    Some(Geste::Defiler)
-                }
+                // Le doigt qui n'écrit pas déplace la page, quel que soit l'outil (le stylet fait l'outil).
+                _ if doigt_deplace && self.outil != Outil::Clavier => Some(Geste::Defiler),
                 Outil::Ecrire | Outil::Formes => Some(Geste::Trait {
                     page,
                     trait_: Trait {
@@ -680,6 +680,19 @@ impl Fanoratana {
             self.modifie();
             return;
         }
+        // Un trait plat sous un texte au propre le souligne (le trait n'est pas gardé).
+        if let Some(i) = self.texte_sous_trait(page, &trait_) {
+            self.memoriser();
+            if let Some(Element::Texte(tx)) = self
+                .pages()
+                .and_then(|v| v.get_mut(page))
+                .and_then(|p| p.elements.get_mut(i))
+            {
+                tx.souligne = true;
+            }
+            self.modifie();
+            return;
+        }
         // Forme : outil Formes, ou trait tenu immobile au bout (≥ 0,5 s).
         let tenu = trait_.points.len() >= 2 && {
             let fin = trait_.points.last().unwrap();
@@ -775,21 +788,60 @@ impl Fanoratana {
             self.dernier_segment = (kind == FormeKind::Segment).then_some((page, i, self.maintenant));
         }
         self.modifie();
+        self.ajuster_graphes(page);
     }
 
     /// Envoie des traits à la lecture, ligne par ligne.
     pub(crate) fn lire_traits(&mut self, traits: Vec<(usize, Trait)>, forcee: bool) {
-        let Some(lecteur) = &self.lecteur else { return };
+        if self.lecteur.is_none() {
+            return;
+        }
         let mut par_page: std::collections::BTreeMap<usize, Vec<Trait>> = Default::default();
         for (p, t) in traits {
             par_page.entry(p).or_default().push(t);
         }
         for (page, traits) in par_page {
+            // 1ʳᵉ passe : les grands tracés isolés qui sont des formes (ronds, triangles, traits longs).
+            let boites: Vec<Rect> = traits.iter().map(Trait::bbox).collect();
+            let mut formes: Vec<Trait> = Vec::new();
+            for ligne in fano_ink::grouper_lignes(&boites) {
+                let tous: Vec<Trait> = ligne.traits.iter().map(|&i| traits[i].clone()).collect();
+                formes.extend(tous.iter().filter(|t| forme_isolee(t, &tous).is_some()).cloned());
+            }
+            if !formes.is_empty() {
+                self.convertir_formes(page, &formes);
+            }
+            // 2ᵉ passe : les traits entre deux ronds sont des arêtes (graphe, arbre), ronds compris.
+            let restants: Vec<Trait> = traits.iter().filter(|t| !formes.contains(t)).cloned().collect();
+            let aretes: Vec<Trait> = restants
+                .iter()
+                .filter(|t| self.arete_entre_ronds(page, t))
+                .cloned()
+                .collect();
+            if !aretes.is_empty() {
+                self.convertir_formes(page, &aretes);
+            }
+            let traits: Vec<Trait> = restants.into_iter().filter(|t| !aretes.contains(t)).collect();
+            // 3ᵉ passe : l'écriture, ligne par ligne.
             let boites: Vec<Rect> = traits.iter().map(Trait::bbox).collect();
             for ligne in fano_ink::grouper_lignes(&boites) {
-                let ts: Vec<Trait> = ligne.traits.iter().map(|&i| traits[i].clone()).collect();
+                let tous: Vec<Trait> = ligne.traits.iter().map(|&i| traits[i].clone()).collect();
+                if tous.is_empty() {
+                    continue;
+                }
+                // Un trait plat et large sous les mots les souligne : il n'est pas lu comme une lettre.
+                let (traits_soulignement, ts): (Vec<Trait>, Vec<Trait>) = tous
+                    .iter()
+                    .cloned()
+                    .partition(|t| est_soulignement(t, &ligne.bbox, &tous));
+                if ts.is_empty() {
+                    continue;
+                }
+                let souligne = !traits_soulignement.is_empty();
                 // Un dessin (très haut ou isolé et grand) n'est pas lu, sauf si on le force.
-                if !forcee && ligne.bbox.height() > 140.0 {
+                // Une ligne de plusieurs traits est de l'écriture, même très haute (intégrale, fraction) ;
+                // seul un grand tracé presque seul est un dessin.
+                if !forcee && ligne.bbox.height() > 140.0 && ts.len() < 3 {
                     continue;
                 }
                 let id = self.prochain;
@@ -799,13 +851,16 @@ impl Fanoratana {
                     crate::app::ModeLecture::Texte => fano_reco::Mode::Texte,
                     crate::app::ModeLecture::Formule => fano_reco::Mode::Formule,
                 };
-                lecteur.lire(id, &ts, mode);
+                if let Some(lecteur) = &self.lecteur {
+                    lecteur.lire(id, &ts, mode);
+                }
                 self.lectures.insert(
                     id,
                     EnLecture {
                         page,
-                        traits: ts,
+                        traits: tous,
                         forcee,
+                        souligne,
                     },
                 );
             }
@@ -840,12 +895,25 @@ impl Fanoratana {
                 }
                 continue;
             }
-            self.remplacer_par_texte(l.page, &l.traits, lecture);
+            self.remplacer_par_texte(l.page, &l.traits, lecture, l.souligne);
         }
     }
 
-    fn remplacer_par_texte(&mut self, page: usize, traits: &[Trait], lecture: fano_reco::Lecture) {
-        let b = traits.iter().fold(Rect::NOTHING, |r, t| r.union(t.bbox()));
+    fn remplacer_par_texte(
+        &mut self,
+        page: usize,
+        traits: &[Trait],
+        lecture: fano_reco::Lecture,
+        souligne: bool,
+    ) {
+        let tout = traits.iter().fold(Rect::NOTHING, |r, t| r.union(t.bbox()));
+        // La géométrie (taille, ligne de base) vient des lettres, pas du trait de soulignement.
+        let lettres: Vec<Trait> = traits
+            .iter()
+            .filter(|t| !souligne || !est_soulignement(t, &tout, traits))
+            .cloned()
+            .collect();
+        let b = lettres.iter().fold(Rect::NOTHING, |r, t| r.union(t.bbox()));
         let Some(o) = &self.ouverte else { return };
         let largeur_page = o.lecon.format.taille().0;
         // Les traits ont-ils été effacés entre-temps ? Alors on ne remet rien.
@@ -858,6 +926,36 @@ impl Fanoratana {
         });
         if !presents {
             return;
+        }
+        // Une étiquette courte écrite dans un rond : c'est le nom du nœud (graphe, arbre).
+        let court = lecture.texte.chars().filter(|c| !c.is_whitespace()).count() <= 4
+            && !lecture.texte.trim().contains(' ');
+        if court {
+            let centre = b.center();
+            let rond = o.lecon.pages.get(page).and_then(|p| {
+                let formes: Vec<&Forme> = p
+                    .elements
+                    .iter()
+                    .filter_map(|e| if let Element::Forme(f) = e { Some(f) } else { None })
+                    .collect();
+                fano_ink::graphe::rond_contenant(&formes, centre).map(|k| formes[k].points[0])
+            });
+            if let Some(c) = rond {
+                self.memoriser();
+                if let Some(p) = self.pages().and_then(|v| v.get_mut(page)) {
+                    p.elements
+                        .retain(|e| !matches!(e, Element::Encre(x) if traits.contains(x)));
+                    let noeud = p.elements.iter_mut().find_map(|e| match e {
+                        Element::Forme(f) if f.points.first() == Some(&c) => Some(f),
+                        _ => None,
+                    });
+                    if let Some(f) = noeud {
+                        f.etiquette = lecture.texte.trim().trim_matches('$').to_owned();
+                    }
+                }
+                self.modifie();
+                return;
+            }
         }
         // Écrit dans une case de tableau : la case reçoit le texte.
         let centre = b.center();
@@ -891,11 +989,21 @@ impl Fanoratana {
         let mut lecture = lecture;
         lecture.texte = fano_render::expr::corriger_definition(&lecture.texte);
         let fonction = !crate::editeur::definitions(&lecture.texte).is_empty();
-        let gras = self.est_gras(page, traits);
+        let gras = self.est_gras(page, &lettres);
         // Taille : la hauteur de l'écriture ; un mot sans hampe ni jambage est plus bas.
-        let taille = (b.height() / 0.85).clamp(14.0, 72.0);
+        // Taille : la hauteur des minuscules de l'écriture (Caveat : hauteur d'x = 0,40 em), posée sur
+        // la même ligne de base. Pas la hauteur de la ligne entière : hampes et jambages la gonflent.
+        let (taille, base) = match fano_ink::bande_minuscules(&lettres) {
+            Some((haut, base)) if base - haut > 2.0 => (
+                ((base - haut) / 0.40)
+                    .clamp(14.0, (b.height() / 0.85).max(14.0))
+                    .min(72.0),
+                base,
+            ),
+            _ => ((b.height() / 0.85).clamp(14.0, 72.0), b.max.y - b.height() * 0.2),
+        };
         let texte = Texte {
-            pos: Point::new(b.min.x, b.min.y - taille * 0.22),
+            pos: Point::new(b.min.x, base - taille * 0.95),
             contenu: lecture.texte,
             taille,
             couleur: traits[0].couleur,
@@ -903,6 +1011,7 @@ impl Fanoratana {
             titre: 0,
             encadre: fano_core::Encadre::Aucun,
             gras,
+            souligne,
             source: traits.to_vec(),
             alternatives: lecture.alternatives,
             ..Default::default()
@@ -925,6 +1034,29 @@ impl Fanoratana {
             let m = t(self.langue, T::AstuceTracer).to_owned();
             self.dire(m);
         }
+    }
+
+    /// Le texte au propre qu'un trait plat, tracé juste dessous, vient souligner.
+    fn texte_sous_trait(&self, page: usize, t: &Trait) -> Option<usize> {
+        let tb = t.bbox();
+        if tb.width() < 20.0 || tb.height() > (tb.width() * 0.18).max(6.0) || t.longueur() > tb.width() * 1.3
+        {
+            return None;
+        }
+        let p = self.ouverte.as_ref()?.lecon.pages.get(page)?;
+        p.elements.iter().enumerate().find_map(|(i, e)| match e {
+            Element::Texte(tx) if !tx.souligne => {
+                let r = fano_render::scene::bbox(e);
+                let taille = fano_render::scene::taille_titre(tx);
+                let sous =
+                    tb.center().y >= r.max.y - taille * 0.45 && tb.center().y <= r.max.y + taille * 0.5;
+                let recouvre =
+                    (tb.max.x.min(r.max.x) - tb.min.x.max(r.min.x)) >= (tb.width().min(r.width())) * 0.6;
+                let large = tb.width() >= r.width() * 0.4;
+                (sous && recouvre && large).then_some(i)
+            }
+            _ => None,
+        })
     }
 
     /// Une ligne écrite nettement plus épaisse que l'écriture habituelle de la page est du gras.
@@ -959,6 +1091,76 @@ impl Fanoratana {
             2.2 * 0.9
         };
         poids >= reference * 1.45
+    }
+
+    /// Graphes et arbres : tailles, niveaux, arêtes accrochées au bord des nœuds.
+    pub(crate) fn ajuster_graphes(&mut self, page: usize) {
+        let mut change = false;
+        if let Some(p) = self.pages().and_then(|v| v.get_mut(page)) {
+            let mut formes: Vec<&mut Forme> = p
+                .elements
+                .iter_mut()
+                .filter_map(|e| if let Element::Forme(f) = e { Some(f) } else { None })
+                .collect();
+            change = fano_ink::graphe::ajuster(&mut formes);
+        }
+        if change {
+            self.modifie();
+        }
+    }
+
+    /// Un trait droit dont les deux bouts touchent des ronds de la page : une arête de graphe.
+    fn arete_entre_ronds(&self, page: usize, t: &Trait) -> bool {
+        let Some(p) = self.ouverte.as_ref().and_then(|o| o.lecon.pages.get(page)) else {
+            return false;
+        };
+        let pts: Vec<Point> = t.points.iter().map(PointEncre::pos).collect();
+        let Some(f) = fano_ink::reconnaitre_forme(&pts) else {
+            return false;
+        };
+        if !matches!(f.kind, FormeKind::Segment | FormeKind::Fleche) {
+            return false;
+        }
+        let touche = |q: Point| {
+            p.elements.iter().any(|e| {
+                matches!(e, Element::Forme(r) if matches!(r.kind, FormeKind::Ellipse | FormeKind::Noeud)
+                    && r.points.len() >= 2
+                    && r.points[0].dist(q) <= r.points[1].x.max(r.points[1].y) * 1.6 + 8.0)
+            })
+        };
+        touche(f.points[0]) && touche(f.points[1])
+    }
+
+    /// Remplace des traits d'encre par les formes qu'ils dessinent.
+    pub(crate) fn convertir_formes(&mut self, page: usize, traits: &[Trait]) {
+        let rempli = self.rempli;
+        self.memoriser();
+        if let Some(p) = self.pages().and_then(|v| v.get_mut(page)) {
+            for t in traits {
+                let pts: Vec<Point> = t.points.iter().map(PointEncre::pos).collect();
+                let Some(r) = fano_ink::reconnaitre_forme(&pts) else {
+                    continue;
+                };
+                if let Some(i) = p
+                    .elements
+                    .iter()
+                    .position(|e| matches!(e, Element::Encre(x) if x == t))
+                {
+                    p.elements[i] = Element::Forme(Forme {
+                        kind: r.kind,
+                        points: r.points,
+                        couleur: t.couleur,
+                        epaisseur: t.epaisseur.max(1.6),
+                        rempli,
+                        graine: t.points.len() as u32,
+                        etiquette: String::new(),
+                        source: vec![t.clone()],
+                    });
+                }
+            }
+        }
+        self.modifie();
+        self.ajuster_graphes(page);
     }
 
     /// « Mettre au propre » : la sélection, ou toute l'encre en attente, ou toute l'encre de la page.
@@ -1028,6 +1230,59 @@ impl Fanoratana {
     }
 }
 
+/// La forme d'un tracé, s'il est grand (≥ 40 pt) et seul de sa taille sur sa ligne (les autres traits
+/// sont au moins deux fois plus petits) : un rond dessiné, pas la lettre O d'un mot.
+pub(crate) fn forme_isolee(t: &Trait, ligne: &[Trait]) -> Option<fano_ink::FormeReconnue> {
+    let b = t.bbox();
+    let taille = b.width().max(b.height());
+    if taille < 40.0 {
+        return None;
+    }
+    // Les autres grandes formes nettes de la ligne (deux ronds côte à côte) ne comptent pas comme des lettres.
+    let grande_forme = |o: &Trait| {
+        let ob = o.bbox();
+        ob.width().max(ob.height()) >= 40.0
+            && fano_ink::reconnaitre_forme(&o.points.iter().map(PointEncre::pos).collect::<Vec<_>>())
+                .is_some()
+    };
+    let autres: Vec<f32> = ligne
+        .iter()
+        .filter(|o| *o != t && !grande_forme(o))
+        .map(|o| {
+            let ob = o.bbox();
+            ob.width().max(ob.height())
+        })
+        .collect();
+
+    if autres.iter().any(|&a| a * 2.0 > taille) {
+        return None;
+    }
+    let pts: Vec<Point> = t.points.iter().map(PointEncre::pos).collect();
+    let f = fano_ink::reconnaitre_forme(&pts)?;
+    // Un trait court isolé peut être un « 1 » ou un « l » : seuls les traits longs deviennent des segments.
+    let long = matches!(f.kind, FormeKind::Segment | FormeKind::Fleche) && taille < 80.0;
+    (!long).then_some(f)
+}
+
+/// Un trait plat, large et à peu près droit, sous les autres traits d'une ligne : un soulignement.
+pub(crate) fn est_soulignement(t: &Trait, ligne: &Rect, tous: &[Trait]) -> bool {
+    let tb = t.bbox();
+    let autres = tous
+        .iter()
+        .filter(|o| *o != t)
+        .fold(Rect::NOTHING, |r, o| r.union(o.bbox()));
+    if !autres.is_valid() || tb.width() < 20.0 {
+        return false;
+    }
+    let plat = tb.height() <= (tb.width() * 0.18).max(6.0);
+    let droit = t.longueur() <= tb.width() * 1.3;
+    let large = tb.width() >= autres.width() * 0.35;
+    let dessous = tb.center().y >= autres.min.y + autres.height() * 0.65;
+    let recouvre = (tb.max.x.min(autres.max.x) - tb.min.x.max(autres.min.x)) >= tb.width() * 0.6;
+    let _ = ligne;
+    plat && droit && large && dessous && recouvre
+}
+
 fn rect_points(r: egui::Rect) -> [Pos2; 5] {
     [
         r.left_top(),
@@ -1036,4 +1291,74 @@ fn rect_points(r: egui::Rect) -> [Pos2; 5] {
         r.left_bottom(),
         r.left_top(),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fano_core::Couleur;
+
+    fn rond(cx: f32, cy: f32, r: f32) -> Trait {
+        Trait {
+            points: (0..=60)
+                .map(|i| {
+                    let a = i as f32 / 60.0 * std::f32::consts::TAU;
+                    PointEncre {
+                        x: cx + r * a.cos(),
+                        y: cy + r * (1.0 + 0.05 * (3.0 * a).sin()) * a.sin(),
+                        p: 0.5,
+                        t: 0,
+                    }
+                })
+                .collect(),
+            couleur: Couleur::NOIR,
+            epaisseur: 2.0,
+            surligneur: false,
+        }
+    }
+
+    #[test]
+    fn deux_ronds_ne_font_pas_00() {
+        // Relevé sur le Pad 7 (2026-11-08) : deux ronds lus « 00 ».
+        let ligne = vec![rond(100.0, 100.0, 40.0), rond(300.0, 100.0, 40.0)];
+        for t in &ligne {
+            assert_eq!(forme_isolee(t, &ligne).map(|f| f.kind), Some(FormeKind::Ellipse));
+        }
+    }
+
+    #[test]
+    fn un_o_dans_un_mot_reste_une_lettre() {
+        let ligne = vec![
+            rond(100.0, 100.0, 9.0),
+            rond(125.0, 100.0, 9.0),
+            rond(150.0, 100.0, 9.0),
+        ];
+        assert!(
+            ligne.iter().all(|t| forme_isolee(t, &ligne).is_none()),
+            "trop petit : une lettre"
+        );
+        // « Oui » en grand : le O parmi des lettres cursives de même hauteur reste une lettre.
+        let lettre = |x0: f32| Trait {
+            points: (0..=40)
+                .map(|i| {
+                    let t = i as f32 / 40.0;
+                    PointEncre {
+                        x: x0 + t * 50.0,
+                        y: 100.0 + 28.0 * (t * std::f32::consts::TAU * 2.0).sin(),
+                        p: 0.5,
+                        t: 0,
+                    }
+                })
+                .collect(),
+            couleur: Couleur::NOIR,
+            epaisseur: 2.0,
+            surligneur: false,
+        };
+        let mut titre = vec![rond(100.0, 100.0, 30.0)];
+        titre.extend([lettre(150.0), lettre(210.0)]);
+        assert!(
+            forme_isolee(&titre[0], &titre).is_none(),
+            "un grand O parmi des lettres de même taille reste une lettre"
+        );
+    }
 }

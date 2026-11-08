@@ -4,6 +4,25 @@
 
 ## 0. Erreurs signalées (ne reviennent jamais)
 
+- ✅ Écriture d'Antsa au stylet (Pad 7 a11fafee, 2026-11-08) : « Je veux voir » lu « fe voux vor », « 1- Important » lu
+  « 1- Impontant » → correction des mots incertains par lexique français, une faute au plus (`lexique::lectures_du_pad7`) ;
+  « médiatrice » n'est jamais changé (`un_mot_sur_ou_rare_et_juste_reste`).
+- ✅ Texte au propre bien plus grand que l'écriture (« Je ne sais pas lire ») : taille d'après la bande des minuscules
+  (`bande_minuscules`, `une_hampe_ne_fait_pas_la_taille`).
+- ✅ Le soulignement tracé à la main restait de l'encre : il souligne le texte (en attente ou déjà au propre).
+- ✅ Le doigt ne déplaçait pas la page avec Clavier, Sélection ou Gomme quand il n'écrit pas : il la déplace avec tous les outils.
+- ✅ Téléchargement du modèle des formules coupé à 60 s (« timeout: global ») : plus de délai global, seulement une connexion muette.
+- ✅ « Quand je trace une ligne ça en fait deux » (Antsa, 2026-11-08) : les formes sont un seul trait net (`rough` : test « un seul trait »).
+- ✅ « Un rond ne fait pas un cercle » : un rond irrégulier, un peu ovale (≤ 25 %) ou qui dépasse son départ devient un cercle
+  (`un_rond_devient_un_cercle`) ; un ovale franc reste une ellipse.
+- ✅ Deux ronds lus « 00 » par « Mettre au propre » (Pad 7, 2026-11-08) : un grand tracé isolé qui est une forme nette devient
+  une forme (`deux_ronds_ne_font_pas_00`, `un_o_dans_un_mot_reste_une_lettre`).
+- ✅ Intégrale ∫₀¹ e^(−x²) dx = √π jamais lue (ligne haute prise pour un dessin) : une ligne de plusieurs traits est toujours lue.
+- ✅ Bandeau des mises à jour recouvert par la feuille (bandes noires « Cou… ») : la feuille prend la place qui reste.
+- 🟡 « Calculer cette expression » lu « Calmer cette expetion » : limite du modèle sur la cursive (§ 3, priorité 1).
+- 🟡 « Je ne sais pas lire » lu « Je ne sors pas line » : « sors » est un vrai mot ; il faudra un modèle de langue (suite de mots)
+  ou un modèle d'écriture affiné sur la cursive scolaire française (§ 3).
+
 - ✅ « f(x)=2x+1 » lu « f(z)=2x+1 » (Pad 7 a11fafee, 2026-11-08) : la variable d'une définition est celle du membre de droite
   (`expr::corriger_definition`, test `variable_mal_lue`).
 
@@ -39,7 +58,23 @@
 - 🟡 Essai complet au doigt par Antsa : rature, gomme, formes tenues, sélection, diapos, export PDF vers Documents.
 - 🟡 Mise à jour réelle de 0.0.1 vers 0.0.2 sur la tablette (la 0.0.1 est la première : rien à tester avant la 0.0.2).
 
-## 2. Lecture (priorité)
+## 2. Annoter un PDF ou une image (demande d'Antsa, 2026-11-08) — prochaine version 0.0.2
+
+Ordre de priorité (chaque étape est utilisable seule) :
+
+1. ⬜ **Image en fond de page** : Mes cours › « Importer une image » (et Insérer › « Image en fond de page ») crée une leçon dont
+   chaque page a la taille de l'image, l'image verrouillée dessous ; on écrit, tape, dessine par-dessus ; export PDF/PNG tel quel.
+   Peu de risque : l'image, l'encre et l'export existent déjà.
+2. ⬜ **Importer un PDF** : chaque page du PDF devient une page de leçon à sa taille, fond verrouillé. Rendu des pages par
+   **hayro** (Rust pur, MIT/Apache, déjà vendu dans mahay) à 2× ; licences et poids à mesurer (ADR).
+3. ⬜ **Exporter annoté** : PDF (fond en image 200 dpi + annotations vectorielles) et PNG par page. Ensuite seulement :
+   garder le PDF d'origine en vectoriel (page d'origine en XObject sous les annotations), plus net et plus léger.
+4. ⬜ **Ouvrir depuis Android** : « Ouvrir avec » / « Partager vers Fanoratana » pour un PDF ou une image (intents VIEW/SEND, déjà
+   gérés par la passerelle de mahay) ; sur Linux, glisser-déposer et `fanoratana fichier.pdf`.
+5. ⬜ **Confort** : gros PDF rendus page par page à la demande, miniatures des pages, aller à une page ; gomme qui ne touche jamais le fond.
+6. ⬜ **Plus tard** : recherche dans le texte du PDF, copier une zone du PDF dans un cours, PDF protégés (refus clair).
+
+## 3. Lecture (priorité)
 
 - ⬜ Mesurer la justesse sur l'écriture réelle (200 lignes d'Antsa, au doigt) : CER, mots justes, latence sur le Pad 7.
 - ⬜ PyLaia (MIT) affiné sur des lignes synthétiques françaises et malgaches (polices OFL) puis sur l'écriture donnée en CC0 ; seuil
@@ -51,7 +86,7 @@
 - ⬜ Code manuscrit : lexique de mots-clés, indentation par la position du tracé, coloration.
 - ⬜ Lecture page entière sur PC en option (GLM-OCR, MIT).
 
-## 3. Cours
+## 4. Cours
 
 - ⬜ Nœuds et arêtes : un cercle avec une étiquette relié par des flèches = un graphe ; arbres rangés automatiquement.
 - ⬜ Tableaux à main levée ; listes à puces reconnues ; liens entre leçons `[[…]]` façon Obsidian.
@@ -59,7 +94,7 @@
 - ⬜ Modèles de leçon (cours, fiche d'exercices, évaluation) ; numérotation automatique des exercices.
 - ⬜ Interface en malgache.
 
-## 4. Plateformes
+## 5. Plateformes
 
 - ⬜ Paquets Linux (AppImage, .deb) ; icône et entrée de menu installées.
 - ⬜ Accessibilité : lecteur d'écran (TalkBack) sur le rail et le coffre ; vérifier les contrastes.

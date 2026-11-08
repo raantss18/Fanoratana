@@ -4,10 +4,11 @@
 
 pub mod contour;
 pub mod formes;
+pub mod graphe;
 pub mod lignes;
 pub mod rature;
 
 pub use contour::{contour, squelette};
 pub use formes::{FormeReconnue, reconnaitre_forme};
-pub use lignes::{Ligne, grouper_lignes};
+pub use lignes::{Ligne, bande_minuscules, grouper_lignes};
 pub use rature::est_rature;

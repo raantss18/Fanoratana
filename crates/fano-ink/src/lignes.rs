@@ -101,3 +101,73 @@ mod tests {
         assert_eq!(l[1].traits, vec![3]);
     }
 }
+
+/// La bande des minuscules d'une ligne d'écriture : (haut, ligne de base), en coordonnées de page.
+///
+/// Les points sont pris à pas régulier le long des traits (un trait lent n'a pas plus de poids), puis
+/// on garde la bande où passe l'essentiel de l'encre : du 20ᵉ au 80ᵉ centile en hauteur. Les hampes
+/// (l, J, d) et les jambages (p, j) en débordent ; la bande donne la hauteur d'x et la ligne de base.
+pub fn bande_minuscules(traits: &[fano_core::Trait]) -> Option<(f32, f32)> {
+    let mut ys: Vec<f32> = Vec::new();
+    for t in traits {
+        let pas = (t.bbox().height().max(t.bbox().width()) / 60.0).max(0.5);
+        let mut reste = 0.0;
+        for w in t.points.windows(2) {
+            let (a, b) = (w[0].pos(), w[1].pos());
+            let d = a.dist(b);
+            let mut s = reste;
+            while s < d {
+                ys.push(a.lerp(b, s / d.max(1e-6)).y);
+                s += pas;
+            }
+            reste = s - d;
+        }
+        if t.points.len() == 1 {
+            ys.push(t.points[0].y);
+        }
+    }
+    if ys.len() < 4 {
+        return None;
+    }
+    ys.sort_by(f32::total_cmp);
+    let q = |p: f32| ys[((ys.len() - 1) as f32 * p) as usize];
+    Some((q(0.2), q(0.8)))
+}
+
+#[cfg(test)]
+mod tests_bande {
+    use super::*;
+    use fano_core::{Couleur, PointEncre, Trait};
+
+    fn trait_(pts: &[(f32, f32)]) -> Trait {
+        Trait {
+            points: pts
+                .iter()
+                .map(|&(x, y)| PointEncre { x, y, p: 0.5, t: 0 })
+                .collect(),
+            couleur: Couleur::NOIR,
+            epaisseur: 2.0,
+            surligneur: false,
+        }
+    }
+
+    #[test]
+    fn une_hampe_ne_fait_pas_la_taille() {
+        // « ele » : des minuscules entre y=80 et y=100, et un l qui monte à y=40.
+        let mut v = Vec::new();
+        for k in 0..6 {
+            let x = k as f32 * 20.0;
+            v.push(trait_(&[
+                (x, 100.0),
+                (x + 5.0, 80.0),
+                (x + 10.0, 100.0),
+                (x + 15.0, 80.0),
+                (x + 20.0, 100.0),
+            ]));
+        }
+        v.push(trait_(&[(130.0, 100.0), (132.0, 40.0)]));
+        let (haut, base) = bande_minuscules(&v).unwrap();
+        assert!(base > 95.0 && base <= 100.0, "ligne de base {base}");
+        assert!(haut > 75.0 && haut < 90.0, "haut des minuscules {haut}");
+    }
+}

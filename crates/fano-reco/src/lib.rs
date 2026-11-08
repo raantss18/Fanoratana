@@ -10,6 +10,7 @@
 //! La lecture tourne sur un fil à part ([`Lecteur`]) : l'écriture n'attend jamais.
 
 pub mod formules;
+pub mod lexique;
 pub mod raster;
 
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -36,6 +37,8 @@ pub struct Lecture {
     pub confiance: f32,
     /// D'autres lectures plausibles, de la plus probable à la moins probable (sans `texte`).
     pub alternatives: Vec<String>,
+    /// La confiance de chaque caractère de `texte` (vide pour une formule).
+    pub confiances: Vec<f32>,
 }
 
 pub struct Modele {
@@ -134,10 +137,18 @@ impl Modele {
             })
             .filter(|a| *a != texte)
             .collect();
+        // Une confiance par caractère (un signe CTC peut faire plusieurs caractères : chacun la reçoit).
+        let confiances: Vec<f32> = signes
+            .iter()
+            .flat_map(|s| std::iter::repeat_n(s.1, car(s.0).chars().count()))
+            .collect();
+        let debut = texte.chars().take_while(|c| c.is_whitespace()).count();
+        let n = texte.trim().chars().count();
         Ok(Lecture {
             texte: texte.trim().to_owned(),
             confiance,
             alternatives,
+            confiances: confiances.into_iter().skip(debut).take(n).collect(),
         })
     }
 }
@@ -250,6 +261,7 @@ fn lire_demande(
                         // Le modèle des formules ne donne pas de confiance : la lecture au tracé la donne.
                         confiance: texte.as_ref().map_or(1.0, |t| t.confiance.max(0.7)),
                         alternatives: texte.iter().map(|t| t.texte.clone()).collect(),
+                        confiances: Vec::new(),
                     });
                 }
             }
@@ -257,7 +269,17 @@ fn lire_demande(
             None => {}
         }
     }
-    texte.ok_or_else(|| "rien à lire".into())
+    // Texte : les mots incertains sont corrigés par le lexique français ; la lecture brute devient une
+    // lecture voisine, pour revenir en arrière d'un toucher.
+    let mut l = texte.ok_or("rien à lire")?;
+    if !ressemble_formule(&l.texte) {
+        let corrige = lexique::corriger(&l.texte, &l.confiances);
+        if corrige != l.texte {
+            let brut = std::mem::replace(&mut l.texte, corrige);
+            l.alternatives.insert(0, brut);
+        }
+    }
+    Ok(l)
 }
 
 #[cfg(test)]

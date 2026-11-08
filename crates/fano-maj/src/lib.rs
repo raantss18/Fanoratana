@@ -79,7 +79,12 @@ pub fn verifier(contenu: &[u8], signature: &str) -> Result<(), String> {
 
 fn agent() -> ureq::Agent {
     ureq::Agent::config_builder()
-        .timeout_global(Some(std::time::Duration::from_secs(60)))
+        // Pas de délai global : un modèle de 117 Mo sur une connexion lente prend plusieurs minutes
+        // (« timeout: global » relevé sur le Pad 7, 2026-11-08). On coupe seulement une connexion
+        // muette : 20 s pour se connecter, 60 s sans aucun octet reçu.
+        .timeout_global(None)
+        .timeout_connect(Some(std::time::Duration::from_secs(20)))
+        .timeout_per_read(Some(std::time::Duration::from_secs(60)))
         .user_agent(concat!("Fanoratana/", env!("CARGO_PKG_VERSION")))
         .build()
         .into()

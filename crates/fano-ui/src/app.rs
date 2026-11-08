@@ -103,6 +103,8 @@ pub struct EnLecture {
     pub page: usize,
     pub traits: Vec<Trait>,
     pub forcee: bool,
+    /// Un trait tracé sous les mots : il les souligne au lieu d'être lu (il est dans `traits`).
+    pub souligne: bool,
 }
 
 pub struct Fanoratana {
