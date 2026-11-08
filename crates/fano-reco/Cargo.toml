@@ -1,0 +1,17 @@
+[package]
+name = "fano-reco"
+description = "La lecture de l'écriture de Fanoratana : encre rastérisée, lue hors ligne par PP-OCRv5 latin (tract, Rust pur)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+fano-core = { workspace = true }
+fano-ink = { workspace = true }
+tract-onnx = "0.23.10"
+tiny-skia = { workspace = true }
+log = { workspace = true }
+
+[dev-dependencies]
+ttf-parser = "0.25"

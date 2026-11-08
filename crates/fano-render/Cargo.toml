@@ -1,0 +1,22 @@
+[package]
+name = "fano-render"
+description = "Le rendu au propre de Fanoratana : écriture manuscrite, formules, formes façon Excalidraw, export SVG, PNG et PDF."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+fano-core = { workspace = true }
+fano-ink = { workspace = true }
+ttf-parser = "0.25"
+usvg = { workspace = true }
+resvg = { workspace = true }
+svg2pdf = { workspace = true }
+pdf-writer = "0.12"
+tiny-skia = { workspace = true }
+base64 = "0.22"
+log = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

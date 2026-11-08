@@ -1,0 +1,43 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/fanoratana"]
+# L'app Android se construit à part (scripts/android-build.sh), avec cargo-ndk.
+exclude = ["apps/fanoratana-android"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.95"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/raantss18/Fanoratana"
+
+[workspace.dependencies]
+fano-core = { path = "crates/fano-core" }
+fano-ink = { path = "crates/fano-ink" }
+fano-reco = { path = "crates/fano-reco" }
+fano-render = { path = "crates/fano-render" }
+fano-ui = { path = "crates/fano-ui" }
+egui = "0.36"
+eframe = { version = "0.36", default-features = false }
+egui_extras = { version = "0.36", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+usvg = { version = "0.45", default-features = false, features = ["text"] }
+resvg = { version = "0.45", default-features = false, features = ["text", "raster-images"] }
+svg2pdf = "0.13"
+tiny-skia = "0.11"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[profile.android]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
