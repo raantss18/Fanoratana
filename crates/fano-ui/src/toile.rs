@@ -866,6 +866,7 @@ impl Fanoratana {
                 }
                 let id = self.prochain;
                 self.prochain += 1;
+                journal_traits(id, &ts);
                 let mode = mode_impose.unwrap_or(match self.mode_lecture {
                     crate::app::ModeLecture::Auto => fano_reco::Mode::Auto,
                     crate::app::ModeLecture::Texte => fano_reco::Mode::Texte,
@@ -984,6 +985,10 @@ impl Fanoratana {
             let Some(l) = self.lectures.remove(&id) else {
                 return;
             };
+            match &r {
+                Ok(x) => log::info!("lecture {id} lue : {:?} ({:.2}) voisines {:?}", x.texte, x.confiance, x.alternatives),
+                Err(e) => log::info!("lecture {id} : erreur {e}"),
+            }
             let lecture = match r {
                 Ok(l) => l,
                 Err(e) => {
@@ -1445,6 +1450,20 @@ pub(crate) fn forme_isolee(t: &Trait, ligne: &[Trait]) -> Option<fano_ink::Forme
     Some(f)
 }
 
+/// Le journal de lecture (logcat sur Android, sortie d'erreur sur Linux ; il ne quitte pas l'appareil) :
+/// les traits de chaque ligne envoyée à la lecture, en JSON compact, pour rejouer les erreurs signalées
+/// dans les tests (`tool/essais/journal.py`).
+fn journal_traits(id: u64, ts: &[Trait]) {
+    let traits: Vec<String> = ts
+        .iter()
+        .map(|t| {
+            let p: Vec<String> = t.points.iter().map(|p| format!("[{:.1},{:.1}]", p.x, p.y)).collect();
+            format!("[{}]", p.join(","))
+        })
+        .collect();
+    log::info!("lecture {id} traits [{}]", traits.join(","));
+}
+
 /// La règle des `$` écrits à la main (comme en LaTeX) : ce qui est entre deux `$` d'une ligne est une
 /// formule, lue comme telle ; les `$` sont effacés à la mise au propre. Le reste de la ligne est lu
 /// normalement. Un `$` ouvert sans son second : la suite attend (on écrit peut-être encore la formule).
@@ -1454,6 +1473,10 @@ pub(crate) fn decouper_dollars(ts: Vec<Trait>) -> Vec<(Vec<Trait>, Option<fano_r
         .map(|t| t.points.iter().map(PointEncre::pos).collect())
         .collect();
     let d = fano_ink::dollars(&pts);
+    let s = (0..pts.len()).filter(|&i| fano_ink::est_un_s(&pts[i])).count();
+    if s > 0 || !d.is_empty() {
+        log::info!("dollars : {} S, {} $ complets", s, d.len());
+    }
     if d.is_empty() {
         return couper_ligne(ts)
             .into_iter()

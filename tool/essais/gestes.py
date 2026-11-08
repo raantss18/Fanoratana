@@ -88,6 +88,13 @@ def au_fil(cmds, ch, x0, y0, h):
         trait(cmds, [(x0 + px * h + random.uniform(-2, 2), y0 + py * h + random.uniform(-2, 2)) for px, py in catmull(tr)])
 
 
+def dollar(cmds, cx, cy, h):
+    """Un $ à la main : un S de haut en bas (centre cx, cy ; demi-hauteur h), puis un trait vertical."""
+    s = [(cx + 0.5 * h * 0.6 * math.sin(math.pi * (3 * t / 40 + 0.5)), cy - h + 2 * h * t / 40) for t in range(41)]
+    trait(cmds, s)
+    trait(cmds, [(cx + random.uniform(-2, 2), cy - h * 1.3 + k * h * 2.6 / 12) for k in range(13)])
+
+
 def main(dossier):
     random.seed(3)
     d = Path(dossier)
@@ -121,7 +128,16 @@ def main(dossier):
     e = []
     ecrire(e, "Date", 680, 860, 150)
     ecrire(e, "1789", 680, 1060, 140)
-    for nom, cmds in [("cours1", a), ("cours2", b), ("cours3", c), ("formule", f), ("gras", g), ("cases", e), ("fonction", fx), ("rature_fonction", rx)]:
+    # Texte ou formule (ADR 0014) : f(x)=mx+p seul, puis entre deux $ tracés à la main, puis une phrase avec R.
+    af = []
+    ecrire(af, "f(x)=mx+p", 650, 700, 200)
+    ad = []
+    dollar(ad, 640, 1010, 110)
+    ecrire(ad, "f(x)=mx+p", 760, 1080, 200)
+    dollar(ad, 1700, 1010, 110)
+    ph = []
+    ecrire(ph, "Soit f la fonction définie sur R", 650, 1400, 170)
+    for nom, cmds in [("affine", af), ("affine_dollar", ad), ("phrase_r", ph), ("cours1", a), ("cours2", b), ("cours3", c), ("formule", f), ("gras", g), ("cases", e), ("fonction", fx), ("rature_fonction", rx)]:
         (d / f"{nom}.sh").write_text("\n".join(cmds) + "\n")
 
 
