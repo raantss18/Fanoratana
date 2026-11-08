@@ -25,6 +25,12 @@ pub struct Reglages {
     pub maj_auto: bool,
     /// Dernière recherche (secondes depuis 1970).
     pub derniere_verif: u64,
+    /// La lecture Google (ML Kit, Android) : `None` tant que la personne n'a pas choisi.
+    pub lecture_google: Option<bool>,
+    /// La langue de l'écriture : `fr`, `en` ou `mg`.
+    pub langue_ecriture: String,
+    /// Dernier rafraîchissement du modèle d'écriture (secondes depuis 1970).
+    pub maj_modele_encre: u64,
 }
 
 impl Default for Reglages {
@@ -39,6 +45,9 @@ impl Default for Reglages {
             derniere_lecon: String::new(),
             maj_auto: true,
             derniere_verif: 0,
+            lecture_google: None,
+            langue_ecriture: "fr".into(),
+            maj_modele_encre: 0,
         }
     }
 }

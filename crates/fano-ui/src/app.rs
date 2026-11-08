@@ -107,6 +107,8 @@ pub struct EnLecture {
     pub souligne: bool,
     /// Une barre au-dessus des lettres (Ā) : le texte lu devient `$\overline{…}$`.
     pub barre: bool,
+    /// Les traits envoyés à la lecture (sans soulignement ni barre), pour relire en formule.
+    pub lus: Vec<Trait>,
 }
 
 pub struct Fanoratana {
@@ -161,6 +163,8 @@ pub struct Fanoratana {
     pub(crate) outils_ouverts: bool,
     pub(crate) reglages_ouverts: bool,
     pub(crate) decalage_haut: f32,
+    /// Demander l'accord pour la lecture Google (une fois).
+    pub(crate) demande_google: bool,
     /// Un point de page à faire venir à l'écran (après une insertion hors de vue).
     pub(crate) montrer: Option<(usize, f32)>,
     /// La fin de page a déjà été signalée pour cette page.
@@ -250,6 +254,7 @@ impl Fanoratana {
             outils_ouverts: false,
             reglages_ouverts: false,
             decalage_haut: 0.0,
+            demande_google: false,
             montrer: None,
             page_proposee: false,
         };
@@ -392,6 +397,8 @@ impl Fanoratana {
         }
         self.installer_maj_prete();
         self.recevoir_lectures();
+        self.recevoir_lectures_google();
+        self.rafraichir_modele_encre();
         // Mise au propre automatique après la pause.
         if self.reglages.au_propre_auto && self.geste.is_none() && !self.attente.is_empty() {
             if let Some(d) = self.derniere_ecriture {

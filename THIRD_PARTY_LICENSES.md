@@ -8,6 +8,7 @@
 | latin_PP-OCRv5_mobile_rec (modèle ONNX) | Apache-2.0 | lecture de l'écriture | https://huggingface.co/PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx (SHA-256 `7888113072263cb4…121498`) ; données d'entraînement non publiées par l'éditeur |
 | Pix2Text-MFR 1.0 (modèle ONNX, **non embarqué**) | MIT | formules manuscrites → LaTeX, téléchargé à la demande depuis la page de l'auteur | https://huggingface.co/breezedeus/pix2text-mfr (révision `bea257ed`) ; provenance des données non publiée |
 | Liste de mots français FrequencyWords 2018 (Hermit Dave) | données CC BY-SA 4.0 (code MIT) | correction des mots incertains (`assets/lexique/fr.txt`, filtrée) | https://github.com/hermitdave/FrequencyWords — d'après OpenSubtitles2018 (OPUS) |
+| Google ML Kit Digital Ink Recognition 19.0.0 (Android seulement) | conditions de ML Kit / API Google — bibliothèque fermée, liée sous l'exception `LICENSE-EXCEPTION-MLKIT.md` | lecture de l'écriture fr/en/mg ; modèles téléchargés depuis Google ; statistiques d'utilisation envoyées à Google | https://developers.google.com/ml-kit/terms |
 | mahay-android, FanoActivity, ApkInstaller | MIT ou Apache-2.0 | passerelle Android | https://github.com/raantss18/mahay (`libs/core/crates/android`, `android/shell`) |
 | tract | MIT ou Apache-2.0 | exécution du modèle | https://github.com/sonos/tract |
 | egui, eframe, epaint | MIT ou Apache-2.0 | interface | https://github.com/emilk/egui |

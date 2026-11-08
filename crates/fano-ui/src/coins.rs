@@ -264,6 +264,7 @@ impl Fanoratana {
         if self.reglages_ouverts {
             self.ecran_reglages(ctx);
         }
+        self.demande_lecture_google(ctx);
     }
 
     /// La carte Outils : ce qu'on change souvent, chaque ligne nommée ; choisir un outil la referme.
@@ -440,6 +441,7 @@ impl Fanoratana {
                     );
                     ui.separator();
                     widgets::section(ui, t(l, T::LectureEcriture));
+                    self.reglage_lecture_google(ui);
                     self.reglage_modele_formules(ui);
                     ui.separator();
                     widgets::section(ui, t(l, T::Langue));

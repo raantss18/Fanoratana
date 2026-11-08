@@ -149,6 +149,18 @@ textes! {
     Ecriture => "Écriture", "Writing";
     LectureEcriture => "Lecture de l'écriture", "Reading handwriting";
     MisesAJour => "Mises à jour", "Updates";
+    GoogleTitre => "Lecture Google (comme le clavier Gboard)", "Google reading (like the Gboard keyboard)";
+    GoogleExplication => "Pour lire ton écriture aussi bien que le clavier Google, Fanoratana peut utiliser ML Kit, la technologie de Gboard : français, anglais et malgache, hors ligne. Il télécharge un modèle (≈ 20 Mo par langue) depuis Google, et envoie à Google des statistiques d'utilisation — jamais ton écriture. Sans cela, la lecture libre (moins bonne) reste disponible. Tu pourras changer d'avis dans Réglages.",
+                         "To read your handwriting as well as the Google keyboard does, Fanoratana can use ML Kit, the technology behind Gboard: French, English and Malagasy, offline. It downloads a model (≈ 20 MB per language) from Google, and sends usage statistics to Google — never your handwriting. Without it, the free reader (less accurate) stays available. You can change this in Settings.";
+    GoogleActiver => "Utiliser la lecture Google", "Use Google reading";
+    GoogleRefuser => "Garder la lecture libre", "Keep the free reader";
+    GoogleIndisponible => "Lecture Google : seulement sur Android. Ici, la lecture libre.", "Google reading: Android only. Here, the free reader.";
+    LangueEcriture => "Langue de l'écriture", "Handwriting language";
+    ModelePret => "Modèle prêt, hors ligne.", "Model ready, offline.";
+    ModeleTelechargement => "Téléchargement du modèle…", "Downloading the model…";
+    ModeleAbsent => "Modèle pas encore téléchargé.", "Model not downloaded yet.";
+    ModeleErreur => "Le téléchargement a échoué : réessaie avec une connexion.", "The download failed: try again when online.";
+    ModeleMettreAJour => "Mettre à jour le modèle", "Update the model";
     ChercherMaj => "Rechercher une mise à jour", "Check for updates";
     MajAuto => "Chercher les mises à jour chaque jour", "Check for updates every day";
     MajRecherche => "Recherche d'une mise à jour…", "Checking for updates…";

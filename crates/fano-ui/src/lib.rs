@@ -8,6 +8,7 @@ mod app;
 mod coffre_ui;
 mod coins;
 mod editeur;
+mod google;
 pub mod icones;
 mod maj;
 pub mod peinture;
@@ -18,7 +19,7 @@ mod toile;
 mod widgets;
 
 pub use app::Fanoratana;
-pub use plateforme::{Plateforme, Pointeur};
+pub use plateforme::{EtatModele, Plateforme, Pointeur};
 
 use egui::{FontData, FontDefinitions, FontFamily};
 

@@ -9,13 +9,15 @@ mod android {
     use std::sync::mpsc::Receiver;
 
     use fano_android::{AndroidApp, EguiBridge, Picked, ToolType};
-    use fano_ui::{Fanoratana, Plateforme, Pointeur};
+    use fano_ui::{EtatModele, Fanoratana, Plateforme, Pointeur};
 
     struct Tablette {
         image: Option<Receiver<Option<Picked>>>,
         clavier: Rc<Cell<Option<bool>>>,
         /// Les marges du système, relues au plus toutes les 400 ms (appel JNI).
         marges: ([f32; 4], Option<std::time::Instant>),
+        /// L'état du modèle d'écriture par langue, relu au plus chaque seconde (appel JNI).
+        etats: std::collections::HashMap<String, (i32, std::time::Instant)>,
     }
 
     impl Plateforme for Tablette {
@@ -66,6 +68,39 @@ mod android {
             }
             self.marges.0
         }
+        fn encre_etat(&mut self, langue: &str) -> Option<EtatModele> {
+            let frais = self.etats.get(langue).is_some_and(|(_, t)| t.elapsed() < std::time::Duration::from_secs(1));
+            if !frais {
+                self.etats.insert(langue.to_owned(), (fano_android::encre::etat(langue), std::time::Instant::now()));
+            }
+            match self.etats.get(langue).map(|e| e.0) {
+                Some(0) => Some(EtatModele::Absent),
+                Some(1) => Some(EtatModele::Telechargement),
+                Some(2) => Some(EtatModele::Pret),
+                Some(3) => Some(EtatModele::Erreur),
+                _ => None,
+            }
+        }
+        fn encre_telecharger(&mut self, langue: &str) {
+            fano_android::encre::telecharger(langue);
+            self.etats.remove(langue);
+        }
+        fn encre_lire(&mut self, id: u64, langue: &str, traits: &[fano_core::Trait], zone: (f32, f32), avant: &str) -> bool {
+            // Des temps croissants d'un trait à l'autre (chaque trait a ses temps depuis son début).
+            let mut base: i64 = 0;
+            let traits: Vec<Vec<(f32, f32, i64)>> = traits
+                .iter()
+                .map(|t| {
+                    let v: Vec<(f32, f32, i64)> = t.points.iter().map(|p| (p.x, p.y, base + i64::from(p.t))).collect();
+                    base = v.last().map_or(base, |p| p.2) + 120;
+                    v
+                })
+                .collect();
+            fano_android::encre::lire(id, langue, &traits, zone, avant)
+        }
+        fn encre_lues(&mut self) -> Vec<(u64, Result<Vec<String>, String>)> {
+            fano_android::encre::lues()
+        }
         fn installer_maj(&mut self, fichier: &std::path::Path) -> Result<String, String> {
             fano_android::install_apk(fichier)?;
             Ok(if fano_android::locale().starts_with("en") {
@@ -113,7 +148,7 @@ mod android {
             options,
             Box::new(|cc| {
                 let clavier = Rc::new(Cell::new(None));
-                let plateforme = Tablette { image: None, clavier: clavier.clone(), marges: ([0.0; 4], None) };
+                let plateforme = Tablette { image: None, clavier: clavier.clone(), marges: ([0.0; 4], None), etats: Default::default() };
                 Ok(Box::new(Appli {
                     app: Fanoratana::new(&cc.egui_ctx, Box::new(plateforme)),
                     pont: EguiBridge::new(&cc.egui_ctx),

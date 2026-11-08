@@ -22,6 +22,17 @@ import android.util.Log;
 import android.view.MotionEvent;
 
 import com.google.androidgamesdk.GameActivity;
+import com.google.mlkit.common.model.DownloadConditions;
+import com.google.mlkit.common.model.RemoteModelManager;
+import com.google.mlkit.vision.digitalink.common.RecognitionCandidate;
+import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognition;
+import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModel;
+import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModelIdentifier;
+import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizer;
+import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizerOptions;
+import com.google.mlkit.vision.digitalink.recognition.Ink;
+import com.google.mlkit.vision.digitalink.recognition.RecognitionContext;
+import com.google.mlkit.vision.digitalink.recognition.WritingArea;
 import com.google.androidgamesdk.gametextinput.State;
 
 import java.io.File;
@@ -633,5 +644,89 @@ public class FanoActivity extends GameActivity {
         byte[] buf = new byte[64 * 1024];
         int n;
         while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+    }
+
+    // ---- Lecture de l'écriture : ML Kit Digital Ink, la technologie de Gboard (ADR 0012) ----------
+
+    private static native void nativeOnEncreLue(long id, String[] candidats, String erreur);
+    private static native void nativeOnEncreModele();
+
+    /** État du modèle par langue : 0 absent, 1 téléchargement, 2 prêt, 3 erreur, -1 langue inconnue. */
+    private final java.util.Map<String, Integer> encreEtats = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<String, DigitalInkRecognizer> encreLecteurs = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static DigitalInkRecognitionModel encreModele(String tag) {
+        try {
+            DigitalInkRecognitionModelIdentifier id = DigitalInkRecognitionModelIdentifier.fromLanguageTag(tag);
+            return id == null ? null : DigitalInkRecognitionModel.builder(id).build();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** L'état du modèle d'une langue ; le premier appel lance la vérification (la réponse réveille Rust). */
+    public int encreEtat(String tag) {
+        Integer connu = encreEtats.get(tag);
+        if (connu != null) return connu;
+        DigitalInkRecognitionModel m = encreModele(tag);
+        if (m == null) {
+            encreEtats.put(tag, -1);
+            return -1;
+        }
+        encreEtats.put(tag, 0);
+        RemoteModelManager.getInstance().isModelDownloaded(m)
+                .addOnSuccessListener(ok -> {
+                    encreEtats.put(tag, ok ? 2 : 0);
+                    nativeOnEncreModele();
+                });
+        return 0;
+    }
+
+    /** Télécharge (ou rafraîchit) le modèle d'une langue ; jamais de suppression d'abord : il reste utilisable. */
+    public void encreTelecharger(String tag) {
+        DigitalInkRecognitionModel m = encreModele(tag);
+        if (m == null) return;
+        Integer avant = encreEtats.get(tag);
+        if (avant == null || avant != 2) encreEtats.put(tag, 1);
+        nativeOnEncreModele();
+        RemoteModelManager.getInstance().download(m, new DownloadConditions.Builder().build())
+                .addOnSuccessListener(v -> {
+                    encreEtats.put(tag, 2);
+                    nativeOnEncreModele();
+                })
+                .addOnFailureListener(e -> {
+                    Log.w(TAG, "modèle d'écriture " + tag + " : " + e);
+                    if (avant == null || avant != 2) encreEtats.put(tag, 3);
+                    nativeOnEncreModele();
+                });
+    }
+
+    /** Lit des traits ; la réponse arrive par nativeOnEncreLue. Faux si la langue n'existe pas. */
+    public boolean encreLire(long id, String tag, float[] xs, float[] ys, long[] ts, int[] fins, float largeur, float hauteur, String avant) {
+        DigitalInkRecognitionModel m = encreModele(tag);
+        if (m == null) return false;
+        DigitalInkRecognizer lecteur = encreLecteurs.computeIfAbsent(tag,
+                k -> DigitalInkRecognition.getClient(DigitalInkRecognizerOptions.builder(m).build()));
+        Ink.Builder encre = Ink.builder();
+        int debut = 0;
+        for (int fin : fins) {
+            Ink.Stroke.Builder trait = Ink.Stroke.builder();
+            for (int i = debut; i < fin; i++) trait.addPoint(Ink.Point.create(xs[i], ys[i], ts[i]));
+            encre.addStroke(trait.build());
+            debut = fin;
+        }
+        RecognitionContext contexte = RecognitionContext.builder()
+                .setPreContext(avant == null ? "" : avant)
+                .setWritingArea(new WritingArea(Math.max(1f, largeur), Math.max(1f, hauteur)))
+                .build();
+        lecteur.recognize(encre.build(), contexte)
+                .addOnSuccessListener(res -> {
+                    java.util.List<RecognitionCandidate> c = res.getCandidates();
+                    String[] lus = new String[c.size()];
+                    for (int i = 0; i < lus.length; i++) lus[i] = c.get(i).getText();
+                    nativeOnEncreLue(id, lus, null);
+                })
+                .addOnFailureListener(e -> nativeOnEncreLue(id, new String[0], String.valueOf(e.getMessage())));
+        return true;
     }
 }

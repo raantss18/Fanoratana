@@ -863,8 +863,20 @@ impl Fanoratana {
                     crate::app::ModeLecture::Texte => fano_reco::Mode::Texte,
                     crate::app::ModeLecture::Formule => fano_reco::Mode::Formule,
                 };
-                if let Some(lecteur) = &self.lecteur {
-                    lecteur.lire(id, &ts, mode);
+                // La lecture Google (ML Kit, comme Gboard) quand elle est prête ; sinon la lecture libre.
+                // Une formule demandée explicitement va au lecteur des formules.
+                let google = mode != fano_reco::Mode::Formule && self.google_pret();
+                let lue_par_google = google && {
+                    let bb = ts.iter().fold(Rect::NOTHING, |r, t| r.union(t.bbox()));
+                    let avant = self.texte_avant(page, &bb);
+                    let langue = self.reglages.langue_ecriture.clone();
+                    self.plateforme
+                        .encre_lire(id, &langue, &ts, (bb.width(), bb.height()), &avant)
+                };
+                if !lue_par_google {
+                    if let Some(lecteur) = &self.lecteur {
+                        lecteur.lire(id, &ts, mode);
+                    }
                 }
                 let barre = !barres.is_empty();
                 let mut tous = tous;
@@ -877,6 +889,7 @@ impl Fanoratana {
                         forcee,
                         souligne,
                         barre,
+                        lus: ts,
                     },
                 );
             }
@@ -888,8 +901,74 @@ impl Fanoratana {
         let Some(lecteur) = &self.lecteur else { return };
         let recus: Vec<_> = lecteur.resultats.try_iter().collect();
         for (id, r) in recus {
+            self.traiter_lecture(id, r);
+        }
+    }
+
+    /// La lecture Google est-elle prête (choisie, et le modèle de la langue téléchargé) ?
+    pub(crate) fn google_pret(&mut self) -> bool {
+        if self.reglages.lecture_google != Some(true) {
+            return false;
+        }
+        let langue = self.reglages.langue_ecriture.clone();
+        self.plateforme.encre_etat(&langue) == Some(crate::plateforme::EtatModele::Pret)
+    }
+
+    /// Les lectures de Google : le premier candidat, les suivants en lectures voisines. Une ligne qui
+    /// ressemble à une formule est relue en LaTeX si le modèle des formules est là.
+    pub(crate) fn recevoir_lectures_google(&mut self) {
+        for (id, r) in self.plateforme.encre_lues() {
+            let r = r.map(|c| fano_reco::Lecture {
+                texte: c.first().cloned().unwrap_or_default(),
+                // ML Kit ne donne pas de confiance comparable : sa lecture est retenue (on la corrige d'un toucher).
+                confiance: 1.0,
+                alternatives: c.into_iter().skip(1).take(4).collect(),
+                confiances: Vec::new(),
+            });
+            if let Ok(lecture) = &r {
+                let formule = fano_reco::ressemble_formule(&lecture.texte)
+                    && self.mode_lecture == crate::app::ModeLecture::Auto
+                    && fano_reco::formules::present(&self.dossier_formules());
+                if formule {
+                    if let (Some(lecteur), Some(l)) = (&self.lecteur, self.lectures.get(&id)) {
+                        lecteur.lire(id, &l.lus, fano_reco::Mode::Formule);
+                        continue;
+                    }
+                }
+            }
+            self.traiter_lecture(id, r);
+        }
+    }
+
+    /// Le texte au propre juste avant `b` sur la page (il aide la lecture : contexte de la phrase).
+    fn texte_avant(&self, page: usize, b: &Rect) -> String {
+        let Some(p) = self.ouverte.as_ref().and_then(|o| o.lecon.pages.get(page)) else {
+            return String::new();
+        };
+        p.elements
+            .iter()
+            .filter_map(|e| match e {
+                Element::Texte(t) if t.pos.y < b.min.y + 4.0 => Some((t.pos.y, t.contenu.as_str())),
+                _ => None,
+            })
+            .max_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, c)| {
+                c.chars()
+                    .rev()
+                    .take(20)
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .rev()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Une lecture revenue (libre ou Google) : l'encre devient texte au propre.
+    fn traiter_lecture(&mut self, id: u64, r: Result<fano_reco::Lecture, String>) {
+        {
             let Some(l) = self.lectures.remove(&id) else {
-                continue;
+                return;
             };
             let lecture = match r {
                 Ok(l) => l,
@@ -900,7 +979,7 @@ impl Fanoratana {
                     } else {
                         log::warn!("lecture : {e}");
                     }
-                    continue;
+                    return;
                 }
             };
             let sure = lecture.confiance >= self.reglages.seuil || (l.forcee && lecture.confiance > 0.0);
@@ -909,7 +988,7 @@ impl Fanoratana {
                     let m = t(self.langue, T::PasLu).to_owned();
                     self.dire(m);
                 }
-                continue;
+                return;
             }
             let mut lecture = lecture;
             if l.barre {

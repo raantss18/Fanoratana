@@ -24,6 +24,10 @@
 #[cfg(target_os = "android")]
 mod imp;
 
+/// La lecture de l'écriture par ML Kit (ADR 0012).
+#[cfg(target_os = "android")]
+pub mod encre;
+
 #[cfg(any(target_os = "android", test))]
 mod cleanup;
 

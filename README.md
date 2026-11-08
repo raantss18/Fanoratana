@@ -57,6 +57,13 @@ cargo test --workspace                   # tests
 
 Organisation et règles : [`CLAUDE.md`](CLAUDE.md). Décisions : [`docs/adr/`](docs/adr). Recherche : [`docs/recherche/`](docs/recherche).
 
+## Lecture de l'écriture
+
+Sur Android, avec ton accord, Fanoratana lit l'écriture avec **ML Kit Digital Ink**, la technologie du clavier Gboard
+(français, anglais, malgache, hors ligne une fois le modèle téléchargé, ~20 Mo par langue). ML Kit est une bibliothèque
+fermée de Google ; elle envoie à Google des statistiques d'utilisation, jamais l'écriture. Sans accord, et sur Linux,
+la lecture libre (PP-OCRv5 + dictionnaire) est utilisée. Voir `docs/adr/0012-lecture-google-ml-kit.md`.
+
 ## Licence
 
-GPL-3.0-or-later. Composants tiers (polices OFL, modèle Apache-2.0, code repris de mahay) : [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
+GPL-3.0-or-later, avec une exception pour ML Kit (`LICENSE-EXCEPTION-MLKIT.md`). Composants tiers (polices OFL, modèle Apache-2.0, code repris de mahay) : [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).

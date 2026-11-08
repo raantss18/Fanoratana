@@ -10,6 +10,15 @@ pub enum Pointeur {
     Souris,
 }
 
+/// L'état du modèle d'écriture d'une langue (ML Kit sur Android).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EtatModele {
+    Absent,
+    Telechargement,
+    Pret,
+    Erreur,
+}
+
 pub trait Plateforme {
     /// Le dossier des données de l'app (le coffre par défaut s'y trouve).
     fn dossier_donnees(&self) -> PathBuf;
@@ -37,6 +46,28 @@ pub trait Plateforme {
     /// [gauche, haut, droite, bas]. Les commandes flottantes restent dedans.
     fn marges(&mut self) -> [f32; 4] {
         [0.0; 4]
+    }
+    /// La lecture de l'écriture du système (ML Kit Digital Ink sur Android, ADR 0012) : `None` si
+    /// elle n'existe pas ici (Linux) ou pas pour cette langue.
+    fn encre_etat(&mut self, _langue: &str) -> Option<EtatModele> {
+        None
+    }
+    /// Télécharge ou rafraîchit le modèle d'une langue.
+    fn encre_telecharger(&mut self, _langue: &str) {}
+    /// Lit des traits ; la réponse arrive par [`Plateforme::encre_lues`]. Faux si impossible.
+    fn encre_lire(
+        &mut self,
+        _id: u64,
+        _langue: &str,
+        _traits: &[fano_core::Trait],
+        _zone: (f32, f32),
+        _avant: &str,
+    ) -> bool {
+        false
+    }
+    /// Les lectures revenues : (identifiant, candidats du plus probable au moins probable).
+    fn encre_lues(&mut self) -> Vec<(u64, Result<Vec<String>, String>)> {
+        Vec::new()
     }
     /// La langue du système (`fr_FR`, `en-US`…).
     fn langue(&self) -> String {

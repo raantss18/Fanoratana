@@ -65,4 +65,7 @@ dependencies {
     implementation "androidx.games:games-activity:4.4.0"
     implementation "androidx.appcompat:appcompat:1.7.1"
     implementation "androidx.core:core:1.16.0"
+    // Lecture de l'écriture (ADR 0012) : ML Kit Digital Ink, la technologie de Gboard, fr/en/mg ;
+    // modèles téléchargés à la demande (~20 Mo par langue). Bibliothèque fermée : exception à la GPL.
+    implementation "com.google.mlkit:digital-ink-recognition:19.0.0"
 }

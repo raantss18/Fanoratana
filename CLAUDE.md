@@ -10,10 +10,12 @@
 2. **Rien casser** : une décision = un ADR ≤ 15 lignes (`docs/adr/NNNN-titre.md`) ; commits courts en français (Conventional Commits),
    chemins explicites (jamais `git add -A`) ; `main` toujours vert (`cargo test --workspace`).
 3. **Ne jamais dire « fini » sans l'avoir fait tourner** : tests, captures (`FANO_CAPTURES=<dir> cargo test -p fano-ui --test captures`),
-   puis essai sur la **tablette Xiaomi de Fanoratana, sans stylet (adb `8df629a`)** — pas celle de Fikajiana (`a11fafee`), pas d'émulateur.
+   puis essai sur une **tablette Xiaomi Pad 7** : `a11fafee` (Antsa y écrit au stylet, 2026-11-08) ou `8df629a` (sans stylet) ;
+   jamais d'émulateur.
    Ne pas injecter de gestes pendant qu'Antsa s'en sert.
-4. **Libre et hors ligne** : GPL-3.0-or-later ; dépendances et poids sous licence compatible, notés dans `THIRD_PARTY_LICENSES.md` ;
-   aucun poids appris sur des données « NC » (IAM, RIMES, MathWriting, CROHME). Aucun compte, pub ni télémétrie. Seul réseau : les mises à jour.
+4. **Libre et hors ligne** : GPL-3.0-or-later, avec une seule exception, ML Kit Digital Ink sur Android, choisie par Antsa
+   (ADR 0012, `LICENSE-EXCEPTION-MLKIT.md`) : accord demandé à l'utilisateur, révocable, l'app marche sans ; dépendances et poids sous licence compatible, notés dans `THIRD_PARTY_LICENSES.md` ;
+   aucun poids appris sur des données « NC » (IAM, RIMES, MathWriting, CROHME). Aucun compte, pub ni télémétrie (sauf les statistiques de ML Kit, avec accord). Réseau : mises à jour et modèles.
 5. **Aucun secret dans Git** : `release-keys/` (keystore Android, clé Ed25519 des mises à jour) reste local ; la perdre empêche les mises à jour.
 6. **Identité** (ADR 0006) : monochrome, noir sur blanc, icônes au trait uniforme à bouts ronds, Caveat sur la feuille, Nunito pour l'interface.
 7. **Interface** : cibles ≥ 48 dp ; contrastes WCAG 2.2 AA ; couleur jamais seule ; textes fr/en de qualité égale (`fano-ui/src/textes.rs`).

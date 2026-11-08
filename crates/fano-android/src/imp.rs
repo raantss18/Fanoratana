@@ -812,7 +812,7 @@ fn notice(text: &str) {
     with_state(|s| s.notices.push(text.to_string()));
 }
 
-fn wake() {
+pub(crate) fn wake() {
     if let Ok(w) = WAKER.lock()
         && let Some(w) = w.as_ref()
     {
@@ -827,7 +827,7 @@ fn with_state<T>(f: impl FnOnce(&mut State) -> T) -> Option<T> {
 
 /// Run `f` with a JNI env attached to this thread and the activity object. Logs and returns
 /// `None` on any JNI error (a pending Java exception is described and cleared).
-fn with_activity<T>(f: impl FnOnce(&mut JNIEnv, &JObject) -> jni::errors::Result<T>) -> Option<T> {
+pub(crate) fn with_activity<T>(f: impl FnOnce(&mut JNIEnv, &JObject) -> jni::errors::Result<T>) -> Option<T> {
     let app = APP.get()?;
     // SAFETY: android-activity keeps both pointers valid for the app's lifetime.
     let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }.ok()?;

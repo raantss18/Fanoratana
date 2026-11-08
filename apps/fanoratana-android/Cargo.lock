@@ -1373,6 +1373,7 @@ dependencies = [
  "eframe",
  "egui",
  "fano-android",
+ "fano-core",
  "fano-ui",
  "log",
 ]
