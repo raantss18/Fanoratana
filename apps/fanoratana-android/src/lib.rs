@@ -14,6 +14,8 @@ mod android {
     struct Tablette {
         image: Option<Receiver<Option<Picked>>>,
         clavier: Rc<Cell<Option<bool>>>,
+        /// Les marges du système, relues au plus toutes les 400 ms (appel JNI).
+        marges: ([f32; 4], Option<std::time::Instant>),
     }
 
     impl Plateforme for Tablette {
@@ -57,6 +59,12 @@ mod android {
         }
         fn langue(&self) -> String {
             fano_android::locale()
+        }
+        fn marges(&mut self) -> [f32; 4] {
+            if self.marges.1.is_none_or(|t| t.elapsed() >= std::time::Duration::from_millis(400)) {
+                self.marges = (fano_android::system_insets().map(|v| v.max(0) as f32), Some(std::time::Instant::now()));
+            }
+            self.marges.0
         }
         fn installer_maj(&mut self, fichier: &std::path::Path) -> Result<String, String> {
             fano_android::install_apk(fichier)?;
@@ -105,7 +113,7 @@ mod android {
             options,
             Box::new(|cc| {
                 let clavier = Rc::new(Cell::new(None));
-                let plateforme = Tablette { image: None, clavier: clavier.clone() };
+                let plateforme = Tablette { image: None, clavier: clavier.clone(), marges: ([0.0; 4], None) };
                 Ok(Box::new(Appli {
                     app: Fanoratana::new(&cc.egui_ctx, Box::new(plateforme)),
                     pont: EguiBridge::new(&cc.egui_ctx),

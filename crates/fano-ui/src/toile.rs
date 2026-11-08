@@ -812,8 +812,26 @@ impl Fanoratana {
             let traits: Vec<Trait> = restants.into_iter().filter(|t| !aretes.contains(t)).collect();
             // 3ᵉ passe : l'écriture, ligne par ligne.
             let boites: Vec<Rect> = traits.iter().map(Trait::bbox).collect();
+            let mut morceaux: Vec<Vec<Trait>> = Vec::new();
             for ligne in fano_ink::grouper_lignes(&boites) {
-                let tous: Vec<Trait> = ligne.traits.iter().map(|&i| traits[i].clone()).collect();
+                morceaux.extend(couper_ligne(
+                    ligne.traits.iter().map(|&i| traits[i].clone()).collect(),
+                ));
+            }
+            for tous in morceaux {
+                if tous.is_empty() {
+                    continue;
+                }
+                let ligne = fano_ink::Ligne {
+                    traits: vec![],
+                    bbox: tous.iter().fold(Rect::NOTHING, |r, t| r.union(t.bbox())),
+                    mots: vec![],
+                };
+                // Une barre au-dessus des lettres (Ā, complémentaire) : elle n'est pas lue comme un « − ».
+                let (barres, tous): (Vec<Trait>, Vec<Trait>) = {
+                    let copie = tous.clone();
+                    tous.into_iter().partition(|t| est_barre_dessus(t, &copie))
+                };
                 if tous.is_empty() {
                     continue;
                 }
@@ -842,6 +860,9 @@ impl Fanoratana {
                 if let Some(lecteur) = &self.lecteur {
                     lecteur.lire(id, &ts, mode);
                 }
+                let barre = !barres.is_empty();
+                let mut tous = tous;
+                tous.extend(barres);
                 self.lectures.insert(
                     id,
                     EnLecture {
@@ -849,6 +870,7 @@ impl Fanoratana {
                         traits: tous,
                         forcee,
                         souligne,
+                        barre,
                     },
                 );
             }
@@ -882,6 +904,17 @@ impl Fanoratana {
                     self.dire(m);
                 }
                 continue;
+            }
+            let mut lecture = lecture;
+            if l.barre {
+                let interieur = lecture
+                    .texte
+                    .trim()
+                    .trim_matches('$')
+                    .trim_start_matches('-')
+                    .trim()
+                    .to_owned();
+                lecture.texte = format!("$\\overline{{{interieur}}}$");
             }
             self.remplacer_par_texte(l.page, &l.traits, lecture, l.souligne);
         }
@@ -1078,7 +1111,9 @@ impl Fanoratana {
         } else {
             2.2 * 0.9
         };
-        poids >= reference * 1.45
+        // 1,6 : l'appui naturel du stylet varie ; seul un trait nettement plus épais est du gras
+        // (faux gras relevé sur le Pad 7 au stylet, 2026-11-08).
+        poids >= reference * 1.6
     }
 
     /// Graphes et arbres : tailles, niveaux, arêtes accrochées au bord des nœuds.
@@ -1242,14 +1277,67 @@ pub(crate) fn forme_isolee(t: &Trait, ligne: &[Trait]) -> Option<fano_ink::Forme
         })
         .collect();
 
+    let pts: Vec<Point> = t.points.iter().map(PointEncre::pos).collect();
+    let f = fano_ink::reconnaitre_forme(&pts)?;
+    let ouverte = matches!(
+        f.kind,
+        FormeKind::Segment | FormeKind::Fleche | FormeKind::Polyligne
+    );
+    if ouverte {
+        // Une branche d'arbre (trait, « < ») : nettement plus longue que les lettres voisines (1,6 × la
+        // médiane), et jamais un trait court (« 1 », « l », « - »).
+        let mut tri = autres.clone();
+        tri.sort_by(f32::total_cmp);
+        let mediane = tri.get(tri.len() / 2).copied().unwrap_or(0.0);
+        if taille < 60.0 || taille < mediane * 1.6 {
+            return None;
+        }
+        return Some(f);
+    }
+    // Une forme fermée (rond, triangle…) : au moins deux fois plus grande que tout ce qui l'entoure.
     if autres.iter().any(|&a| a * 2.0 > taille) {
         return None;
     }
-    let pts: Vec<Point> = t.points.iter().map(PointEncre::pos).collect();
-    let f = fano_ink::reconnaitre_forme(&pts)?;
-    // Un trait court isolé peut être un « 1 » ou un « l » : seuls les traits longs deviennent des segments.
-    let long = matches!(f.kind, FormeKind::Segment | FormeKind::Fleche) && taille < 80.0;
-    (!long).then_some(f)
+    Some(f)
+}
+
+/// Coupe une ligne là où un grand vide sépare les traits (étiquettes d'un arbre, deux colonnes) :
+/// chaque morceau est lu à part, à sa place (« XA » lu pour deux étiquettes, Pad 7, 2026-11-08).
+pub(crate) fn couper_ligne(mut traits: Vec<Trait>) -> Vec<Vec<Trait>> {
+    traits.sort_by(|a, b| a.bbox().min.x.total_cmp(&b.bbox().min.x));
+    let hauteur = traits
+        .iter()
+        .fold(Rect::NOTHING, |r, t| r.union(t.bbox()))
+        .height()
+        .max(20.0);
+    let mut res: Vec<Vec<Trait>> = Vec::new();
+    let mut droite = f32::NEG_INFINITY;
+    for t in traits {
+        let b = t.bbox();
+        if res.is_empty() || b.min.x - droite > hauteur * 1.5 {
+            res.push(Vec::new());
+            droite = f32::NEG_INFINITY;
+        }
+        droite = droite.max(b.max.x);
+        res.last_mut().unwrap().push(t);
+    }
+    res
+}
+
+/// Un petit trait plat posé au-dessus des lettres : la barre de Ā (événement contraire, complémentaire).
+pub(crate) fn est_barre_dessus(t: &Trait, tous: &[Trait]) -> bool {
+    let tb = t.bbox();
+    let autres = tous
+        .iter()
+        .filter(|o| *o != t)
+        .fold(Rect::NOTHING, |r, o| r.union(o.bbox()));
+    if !autres.is_valid() || tb.width() < 6.0 {
+        return false;
+    }
+    let plat = tb.height() <= (tb.width() * 0.25).max(4.0);
+    let dessus = tb.center().y < autres.min.y + autres.height() * 0.15;
+    let recouvre = (tb.max.x.min(autres.max.x) - tb.min.x.max(autres.min.x)) >= tb.width() * 0.5;
+    plat && dessus && recouvre && t.longueur() <= tb.width() * 1.4
 }
 
 /// Un trait plat, large et à peu près droit, sous les autres traits d'une ligne : un soulignement.
@@ -1347,6 +1435,71 @@ mod tests {
         assert!(
             forme_isolee(&titre[0], &titre).is_none(),
             "un grand O parmi des lettres de même taille reste une lettre"
+        );
+    }
+
+    fn trait_de(pts: &[(f32, f32)]) -> Trait {
+        Trait {
+            points: pts
+                .iter()
+                .map(|&(x, y)| PointEncre { x, y, p: 0.5, t: 0 })
+                .collect(),
+            couleur: Couleur::NOIR,
+            epaisseur: 2.0,
+            surligneur: false,
+        }
+    }
+
+    /// Une lettre approximative (un zigzag de la hauteur donnée).
+    fn lettre(x: f32, y: f32, h: f32) -> Trait {
+        trait_de(&[
+            (x, y + h),
+            (x + h * 0.3, y),
+            (x + h * 0.6, y + h),
+            (x + h * 0.8, y + h * 0.4),
+        ])
+    }
+
+    #[test]
+    fn arbre_de_probabilites() {
+        // Relevé sur le Pad 7 (2026-11-08) : branches en « < », étiquettes A et Ā.
+        let branche = trait_de(&[(400.0, 100.0), (250.0, 200.0), (400.0, 300.0)]);
+        let a = lettre(430.0, 80.0, 40.0);
+        let a2 = lettre(430.0, 280.0, 40.0);
+        let ligne = vec![branche.clone(), a.clone(), a2.clone()];
+        assert_eq!(
+            forme_isolee(&branche, &ligne).map(|f| f.kind),
+            Some(FormeKind::Polyligne),
+            "la branche est une forme"
+        );
+        // Un petit « < » entre deux lettres reste le signe inférieur.
+        let inf = trait_de(&[(140.0, 100.0), (110.0, 115.0), (140.0, 130.0)]);
+        let math = vec![lettre(60.0, 95.0, 40.0), inf.clone(), lettre(160.0, 95.0, 40.0)];
+        assert!(forme_isolee(&inf, &math).is_none());
+    }
+
+    #[test]
+    fn etiquettes_eloignees_lues_a_part() {
+        let morceaux = couper_ligne(vec![
+            lettre(0.0, 0.0, 40.0),
+            lettre(30.0, 0.0, 40.0),
+            lettre(300.0, 0.0, 40.0),
+        ]);
+        assert_eq!(morceaux.len(), 2);
+        assert_eq!(morceaux[0].len(), 2);
+    }
+
+    #[test]
+    fn barre_de_a_barre() {
+        let a = lettre(100.0, 100.0, 40.0);
+        let barre = trait_de(&[(98.0, 88.0), (130.0, 89.0)]);
+        let tous = vec![a.clone(), barre.clone()];
+        assert!(est_barre_dessus(&barre, &tous));
+        assert!(!est_barre_dessus(&a, &tous));
+        let moins = trait_de(&[(60.0, 120.0), (85.0, 120.0)]);
+        assert!(
+            !est_barre_dessus(&moins, &[a, moins.clone()]),
+            "un « − » à côté n'est pas une barre"
         );
     }
 }

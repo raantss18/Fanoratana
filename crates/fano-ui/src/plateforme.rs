@@ -33,6 +33,11 @@ pub trait Plateforme {
     fn installer_maj(&mut self, fichier: &std::path::Path) -> Result<String, String> {
         fano_maj::remplacer_programme(fichier).map(|_| String::new())
     }
+    /// Les marges du système (barre d'état, navigation, encoche, clavier), en pixels physiques :
+    /// [gauche, haut, droite, bas]. Les commandes flottantes restent dedans.
+    fn marges(&mut self) -> [f32; 4] {
+        [0.0; 4]
+    }
     /// La langue du système (`fr_FR`, `en-US`…).
     fn langue(&self) -> String {
         std::env::var("LANG").unwrap_or_default()

@@ -138,7 +138,12 @@ impl Fanoratana {
     /// Les quatre coins.
     pub(crate) fn coins(&mut self, ctx: &egui::Context) {
         let l = self.langue;
-        let ecran = ctx.content_rect();
+        // L'écran moins les barres du système (Android dessine l'app dessous, bord à bord).
+        let ppp = ctx.pixels_per_point().max(0.1);
+        let [g, h, d, b] = self.plateforme.marges().map(|v| v / ppp);
+        let tout = ctx.content_rect();
+        let ecran = Rect::from_min_max(tout.min + vec2(g, h), tout.max - vec2(d, b));
+        let (g, d, b) = (g, d, b);
         let haut = ecran.top() + self.decalage_haut;
         // Haut gauche : Mes cours et le titre de la leçon.
         egui::Area::new("coin-haut-gauche".into())
@@ -174,7 +179,7 @@ impl Fanoratana {
             });
         // Haut droit : Insérer et le Menu.
         egui::Area::new("coin-haut-droit".into())
-            .anchor(Align2::RIGHT_TOP, vec2(-MARGE, haut - ecran.top() + MARGE))
+            .anchor(Align2::RIGHT_TOP, vec2(-MARGE - d, haut - tout.top() + MARGE))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     let inserer = pastille(ui, Icone::Inserer, t(l, T::Inserer));
@@ -185,7 +190,7 @@ impl Fanoratana {
             });
         // Bas gauche : taper au clavier.
         egui::Area::new("coin-bas-gauche".into())
-            .anchor(Align2::LEFT_BOTTOM, vec2(MARGE, -MARGE))
+            .anchor(Align2::LEFT_BOTTOM, vec2(MARGE + g, -MARGE - b))
             .show(ctx, |ui| {
                 if pastille(ui, Icone::Clavier, t(l, T::TaperTexte)).clicked() {
                     self.outils_ouverts = false;
@@ -194,7 +199,7 @@ impl Fanoratana {
             });
         // Bas droit : Outils tout à droite (sous le pouce), puis rétablir et annuler.
         egui::Area::new("coin-bas-droit".into())
-            .anchor(Align2::RIGHT_BOTTOM, vec2(-MARGE, -MARGE))
+            .anchor(Align2::RIGHT_BOTTOM, vec2(-MARGE - d, -MARGE - b))
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if bouton_outils(ui, self).clicked() {
@@ -220,7 +225,7 @@ impl Fanoratana {
         if self.outils_ouverts {
             let hauteur = (ecran.height() - 200.0).clamp(240.0, 640.0);
             egui::Area::new("carte-outils".into())
-                .anchor(Align2::RIGHT_BOTTOM, vec2(-MARGE, -MARGE - 72.0))
+                .anchor(Align2::RIGHT_BOTTOM, vec2(-MARGE - d, -MARGE - 72.0 - b))
                 .order(egui::Order::Foreground)
                 .show(ctx, |ui| {
                     Frame::new()

@@ -19,6 +19,10 @@
   une forme (`deux_ronds_ne_font_pas_00`, `un_o_dans_un_mot_reste_une_lettre`).
 - ✅ Intégrale ∫₀¹ e^(−x²) dx = √π jamais lue (ligne haute prise pour un dessin) : une ligne de plusieurs traits est toujours lue.
 - ✅ Bandeau des mises à jour recouvert par la feuille (bandes noires « Cou… ») : la feuille prend la place qui reste.
+- ✅ Arbre de probabilités au stylet (Pad 7, 2026-11-08) : branches « < » lues comme le signe inférieur, étiquettes éloignées
+  fusionnées (« XA »), Ā lu « −A », faux gras → branches = formes (1,6 × la médiane des lettres), lignes coupées aux grands
+  vides, barre au-dessus = `\overline`, seuil du gras 1,6 (`arbre_de_probabilites`, `etiquettes_eloignees_lues_a_part`, `barre_de_a_barre`).
+- ✅ Boutons du haut cachés sous la barre de notification d'Android : les coins respectent les marges du système.
 - 🟡 « Calculer cette expression » lu « Calmer cette expetion » : limite du modèle sur la cursive (§ 3, priorité 1).
 - 🟡 « Je ne sais pas lire » lu « Je ne sors pas line » : « sors » est un vrai mot ; il faudra un modèle de langue (suite de mots)
   ou un modèle d'écriture affiné sur la cursive scolaire française (§ 3).
