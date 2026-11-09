@@ -2,7 +2,17 @@
 
 ## [Non publié]
 
+## [0.0.3] — 2026-11-09
+
 - Les mises à jour sont cherchées à chaque ouverture puis toutes les 6 h ; un téléchargement refusé par GitHub (504) est réessayé puis passe par l'API.
+
+### Message fr
+Les mises à jour arrivent d'elles-mêmes : Fanoratana les cherche à chaque ouverture, puis toutes les 6 heures,
+et réessaie quand le serveur ne répond pas.
+
+### Message en
+Updates now arrive on their own: Fanoratana looks for them every time it opens, then every 6 hours,
+and tries again when the server does not answer.
 
 ## [0.0.2] — 2026-11-09
 
