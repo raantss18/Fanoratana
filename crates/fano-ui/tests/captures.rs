@@ -159,6 +159,7 @@ fn preparer(dir: &std::path::Path) {
     let mut p2 = Page {
         elements: vec![],
         fond: Fond::Carreaux,
+        fond_image: None,
     };
     let mut liste = Texte {
         pos: Point::new(72.0, 40.0),
@@ -212,8 +213,17 @@ fn preparer(dir: &std::path::Path) {
 }
 
 fn capture(nom: &str, taille: egui::Vec2, avant: impl Fn(&mut Harness<'_, Option<Fanoratana>>)) {
+    capture_avec(nom, taille, preparer, avant);
+}
+
+fn capture_avec(
+    nom: &str,
+    taille: egui::Vec2,
+    prep: fn(&std::path::Path),
+    avant: impl Fn(&mut Harness<'_, Option<Fanoratana>>),
+) {
     let dir = tempfile::tempdir().unwrap();
-    preparer(dir.path());
+    prep(dir.path());
     let donnees = dir.path().to_path_buf();
     let mut faux = Some(Faux(donnees));
     let mut h = Harness::builder().with_size(taille).build_ui_state(
@@ -311,4 +321,72 @@ fn le_titre_ne_passe_pas_sous_inserer() {
             inserer.left()
         );
     }
+}
+
+/// Un sujet reçu en PDF ou en photo, annoté : le document dessous, l'écriture par-dessus.
+fn preparer_annote(dir: &std::path::Path) {
+    let coffre = Coffre::ouvrir(dir.join("Cours")).unwrap();
+    let n = coffre.creer_niveau("Terminale").unwrap();
+    let c = coffre.creer_chapitre(&n, "Maths").unwrap();
+    // Le « sujet » : un titre (barre noire) et des lignes de texte (barres grises), à 2× d'un A4.
+    let mut pix = tiny_skia::Pixmap::new(1190, 1684).unwrap();
+    pix.fill(tiny_skia::Color::WHITE);
+    let mut peint = tiny_skia::Paint::default();
+    peint.set_color_rgba8(20, 20, 20, 255);
+    let barre = |pix: &mut tiny_skia::Pixmap, x: f32, y: f32, w: f32, h: f32, p: &tiny_skia::Paint| {
+        pix.fill_rect(
+            tiny_skia::Rect::from_xywh(x, y, w, h).unwrap(),
+            p,
+            tiny_skia::Transform::identity(),
+            None,
+        );
+    };
+    barre(&mut pix, 140.0, 120.0, 700.0, 36.0, &peint);
+    peint.set_color_rgba8(150, 150, 150, 255);
+    for i in 0..14 {
+        barre(
+            &mut pix,
+            140.0,
+            240.0 + i as f32 * 60.0,
+            900.0 - (i % 3) as f32 * 120.0,
+            16.0,
+            &peint,
+        );
+    }
+    let fond = coffre
+        .importer_media("sujet-p1.png", &pix.encode_png().unwrap())
+        .unwrap();
+    let chemin = coffre.creer_lecon(&c, "Sujet de bac", Format::A4).unwrap();
+    let mut l = fano_core::Lecon::annotee("Sujet de bac", 595.0, 842.0, vec![fond]);
+    l.pages[0].elements.push(texte(
+        380.0,
+        300.0,
+        "Bien, mais justifie la limite.",
+        18.0,
+        0,
+        Encadre::Aucun,
+    ));
+    l.pages[0].elements[0] = {
+        let mut e = l.pages[0].elements[0].clone();
+        if let Element::Texte(t) = &mut e {
+            t.couleur = fano_core::Couleur::ROUGE;
+        }
+        e
+    };
+    coffre.ecrire_lecon(&chemin, &l).unwrap();
+    std::fs::write(
+        dir.join("reglages.json"),
+        format!("{{\"derniere_lecon\": {:?}}}", chemin.to_string_lossy()),
+    )
+    .unwrap();
+}
+
+#[test]
+fn document_annote() {
+    capture_avec(
+        "document-annote",
+        egui::vec2(800.0, 1280.0),
+        preparer_annote,
+        |_| {},
+    );
 }

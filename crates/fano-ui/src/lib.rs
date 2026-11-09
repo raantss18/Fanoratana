@@ -4,6 +4,7 @@
 //! (Mes cours) s'ouvre par-dessus. On écrit au doigt, au stylet ou à la souris ; on tape au
 //! clavier ; après une pause, l'écriture se met au propre (docs/design.md, ADR 0005).
 
+mod annoter;
 mod app;
 mod coffre_ui;
 mod coins;

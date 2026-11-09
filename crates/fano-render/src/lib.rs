@@ -5,8 +5,10 @@
 //! - [`maths`] : un petit moteur de formules (sous-ensemble de LaTeX).
 //! - [`rough`] : le trait fait main des formes, façon Excalidraw.
 //! - [`export`] : SVG, PNG et PDF.
+//! - [`document`] : un PDF ou une photo à annoter, en images de pages.
 //! - [`polices`] : Caveat, Noto Sans Math, Nunito, embarquées.
 
+pub mod document;
 pub mod export;
 pub mod expr;
 pub mod maths;

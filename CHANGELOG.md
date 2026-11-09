@@ -2,6 +2,10 @@
 
 ## [Non publié]
 
+- Annoter un PDF ou une image : « Insérer › Annoter un PDF ou une image » en fait une leçon dont chaque page garde le document
+  dessous ; on écrit, tape et dessine par-dessus sans jamais l'effacer, et l'export PDF ou PNG garde tout.
+- Le titre de la leçon ne passe plus sous « Insérer » en portrait étroit ; un mot rayé de va-et-vient verticaux est effacé.
+
 ## [0.0.3] — 2026-11-09
 
 - Les mises à jour sont cherchées à chaque ouverture puis toutes les 6 h ; un téléchargement refusé par GitHub (504) est réessayé puis passe par l'API.

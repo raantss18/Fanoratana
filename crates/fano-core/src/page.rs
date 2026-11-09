@@ -402,6 +402,8 @@ pub enum Format {
     A4,
     /// Diapositive 16:9, 960 × 540 pt.
     Diapo,
+    /// À la taille d'un document annoté (page de PDF, image), en points.
+    Libre { largeur: u32, hauteur: u32 },
 }
 
 impl Format {
@@ -409,6 +411,7 @@ impl Format {
         match self {
             Format::A4 => (595.0, 842.0),
             Format::Diapo => (960.0, 540.0),
+            Format::Libre { largeur, hauteur } => (largeur.max(1) as f32, hauteur.max(1) as f32),
         }
     }
 }
@@ -418,6 +421,10 @@ pub struct Page {
     pub elements: Vec<Element>,
     #[serde(default)]
     pub fond: Fond,
+    /// Un document à annoter (page de PDF, photo) : image verrouillée sous l'écriture, à la taille de la
+    /// page. Ce n'est pas un élément : la gomme et la rature n'y touchent jamais.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fond_image: Option<String>,
 }
 
 /// Une leçon : le fichier `.fano` (JSON).
@@ -450,7 +457,30 @@ impl Lecon {
             pages: vec![Page {
                 elements: Vec::new(),
                 fond,
+                fond_image: None,
             }],
+            etiquettes: Vec::new(),
+        }
+    }
+
+    /// Une leçon pour annoter un document : une page par image (chemins relatifs au coffre), au format
+    /// `largeur` × `hauteur` points, fond blanc sous l'image.
+    pub fn annotee(titre: &str, largeur: f32, hauteur: f32, images: Vec<String>) -> Lecon {
+        Lecon {
+            format_fichier: Self::FORMAT_FICHIER,
+            titre: titre.to_owned(),
+            format: Format::Libre {
+                largeur: largeur.round().max(1.0) as u32,
+                hauteur: hauteur.round().max(1.0) as u32,
+            },
+            pages: images
+                .into_iter()
+                .map(|f| Page {
+                    elements: Vec::new(),
+                    fond: Fond::Blanc,
+                    fond_image: Some(f),
+                })
+                .collect(),
             etiquettes: Vec::new(),
         }
     }
@@ -505,6 +535,29 @@ impl Lecon {
             }
         }
         md
+    }
+}
+
+#[cfg(test)]
+mod tests_annotee {
+    use super::*;
+
+    #[test]
+    fn document_annote_garde_son_fond_et_sa_taille() {
+        let l = Lecon::annotee(
+            "Sujet de bac",
+            595.3,
+            841.9,
+            vec!["medias/p1.png".into(), "medias/p2.png".into()],
+        );
+        assert_eq!(l.format.taille(), (595.0, 842.0));
+        assert_eq!(l.pages.len(), 2);
+        let relue = Lecon::depuis_json(&l.vers_json()).unwrap();
+        assert_eq!(relue, l);
+        assert_eq!(relue.pages[1].fond_image.as_deref(), Some("medias/p2.png"));
+        // Les leçons d'avant (sans fond_image) se lisent toujours.
+        let ancienne = r#"{"format_fichier":1,"titre":"x","pages":[{"elements":[],"fond":"Lignes"}]}"#;
+        assert_eq!(Lecon::depuis_json(ancienne).unwrap().pages[0].fond_image, None);
     }
 }
 

@@ -27,6 +27,14 @@ mod android {
         fn demander_image(&mut self) {
             self.image = Some(fano_android::pick_document(&["image/png", "image/jpeg", "image/svg+xml"]));
         }
+        fn demander_document(&mut self) {
+            self.image = Some(fano_android::pick_document(&[
+                "application/pdf",
+                "image/png",
+                "image/jpeg",
+                "image/svg+xml",
+            ]));
+        }
         fn image_choisie(&mut self) -> Option<(String, Vec<u8>)> {
             let rx = self.image.as_ref()?;
             match rx.try_recv() {

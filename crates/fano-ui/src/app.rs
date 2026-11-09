@@ -154,6 +154,9 @@ pub struct Fanoratana {
     polices_pretes: bool,
     pub(crate) maj: crate::maj::Partage,
     pub(crate) maj_lancee: bool,
+    /// Le prochain fichier choisi est un document à annoter (sinon une image à insérer).
+    pub(crate) document_demande: bool,
+    pub(crate) import: Option<crate::annoter::Partage>,
     /// Dernière recherche de mise à jour tentée (secondes), réussie ou non.
     pub(crate) maj_tentee: u64,
     pub(crate) largeur_vue: f32,
@@ -249,6 +252,8 @@ impl Fanoratana {
             polices_pretes: false,
             maj: Default::default(),
             maj_lancee: false,
+            document_demande: false,
+            import: None,
             maj_tentee: 0,
             largeur_vue: 0.0,
             mode_lecture: ModeLecture::Auto,
@@ -426,8 +431,13 @@ impl Fanoratana {
             }
         }
         if let Some((nom, octets)) = self.plateforme.image_choisie() {
-            self.inserer_image(&nom, &octets);
+            if std::mem::take(&mut self.document_demande) {
+                self.importer_document(nom, octets, ctx);
+            } else {
+                self.inserer_image(&nom, &octets);
+            }
         }
+        self.suivre_import();
         if !self.lectures.is_empty() {
             ctx.request_repaint_after(Duration::from_millis(100));
         }
@@ -667,7 +677,12 @@ impl Fanoratana {
             ui.close();
         }
         if crate::widgets::ligne(ui, Some(Icone::Image), t(l, T::InsererImage), false).clicked() {
+            self.document_demande = false;
             self.plateforme.demander_image();
+            ui.close();
+        }
+        if crate::widgets::ligne(ui, Some(Icone::Page), t(l, T::AnnoterDocument), false).clicked() {
+            self.demander_document();
             ui.close();
         }
         if crate::widgets::ligne(ui, Some(Icone::Page), t(l, T::AjouterPage), false).clicked() {
@@ -677,9 +692,11 @@ impl Fanoratana {
                 let fond = o.lecon.pages.get(page).map(|p| p.fond).unwrap_or_default();
                 o.lecon.pages.insert(
                     page + 1,
+                    // Une page ajoutée dans un document annoté est une page blanche pour écrire.
                     Page {
                         elements: vec![],
                         fond,
+                        fond_image: None,
                     },
                 );
             }
@@ -696,6 +713,7 @@ impl Fanoratana {
             o.lecon.pages.push(Page {
                 elements: vec![],
                 fond,
+                fond_image: None,
             });
             o.lecon.pages.len()
         } else {

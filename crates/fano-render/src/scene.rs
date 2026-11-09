@@ -566,10 +566,23 @@ pub fn element(el: &Element) -> Vec<Prim> {
     }
 }
 
+/// Le fond d'une page : papier (lignes, carreaux…), puis le document annoté s'il y en a un (son image a déjà la
+/// proportion de la page). Le même à l'écran et à l'export.
+pub fn fond_de_page(page: &fano_core::Page, w: f32, h: f32) -> Vec<Prim> {
+    let mut v = fond(page.fond, w, h);
+    if let Some(f) = &page.fond_image {
+        v.push(Prim::Image {
+            fichier: f.clone(),
+            rect: fano_core::Rect::from_min_size(fano_core::Point::new(0.0, 0.0), w, h),
+        });
+    }
+    v
+}
+
 /// La page entière : fond, surlignages, puis le reste dans l'ordre.
 pub fn page(page: &fano_core::Page, format: Format) -> Vec<Prim> {
     let (w, h) = format.taille();
-    let mut v = fond(page.fond, w, h);
+    let mut v = fond_de_page(page, w, h);
     let surligne = |e: &&Element| matches!(e, Element::Encre(t) if t.surligneur);
     for e in page.elements.iter().filter(surligne) {
         v.extend(element(e));

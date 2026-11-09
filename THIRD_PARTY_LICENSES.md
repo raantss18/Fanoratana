@@ -12,6 +12,7 @@
 | Google ML Kit Digital Ink Recognition 19.0.0 (Android seulement) | conditions de ML Kit / API Google — bibliothèque fermée, liée sous l'exception `LICENSE-EXCEPTION-MLKIT.md` | lecture de l'écriture fr/en/mg ; modèles téléchargés depuis Google ; statistiques d'utilisation envoyées à Google | https://developers.google.com/ml-kit/terms |
 | mahay-android, FanoActivity, ApkInstaller | MIT ou Apache-2.0 | passerelle Android | https://github.com/raantss18/mahay (`libs/core/crates/android`, `android/shell`) |
 | tract | MIT ou Apache-2.0 | exécution du modèle | https://github.com/sonos/tract |
+| hayro 0.7 (et hayro-syntax, -interpret, -jbig2, -jpeg2000, -ccitt, -cmap, -postscript), vello_cpu | MIT ou Apache-2.0 ; brotli BSD-3/MIT ; yoke, zerofrom Unicode-3.0 | pages de PDF à annoter rendues en images (ADR 0015) | https://github.com/LaurenzV/hayro |
 | egui, eframe, epaint | MIT ou Apache-2.0 | interface | https://github.com/emilk/egui |
 | resvg, usvg, tiny-skia, svg2pdf, pdf-writer | MIT ou Apache-2.0 / BSD-3 (tiny-skia) | export | https://github.com/linebender/resvg · https://github.com/typst/svg2pdf |
 | ureq, rustls, ring, webpki-roots | MIT/Apache-2.0, ISC, MPL-2.0 (webpki-roots) | mises à jour | https://github.com/algesten/ureq |

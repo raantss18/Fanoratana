@@ -34,6 +34,21 @@ impl Plateforme for Bureau {
         }
     }
 
+    fn demander_document(&mut self) {
+        let f = rfd::FileDialog::new()
+            .add_filter("PDF, images", &["pdf", "png", "jpg", "jpeg", "svg"])
+            .pick_file();
+        if let Some(p) = f {
+            if let Ok(o) = std::fs::read(&p) {
+                let nom = p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "document.pdf".into());
+                self.image = Some((nom, o));
+            }
+        }
+    }
+
     fn image_choisie(&mut self) -> Option<(String, Vec<u8>)> {
         self.image.take()
     }

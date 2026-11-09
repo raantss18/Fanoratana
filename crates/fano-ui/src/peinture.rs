@@ -241,7 +241,7 @@ pub fn page(
         2.0,
         Color32::from_black_alpha(28),
     );
-    for pr in fano_render::scene::fond(page.fond, w, h) {
+    for pr in fano_render::scene::fond_de_page(page, w, h) {
         prim(p, r, &pr, images, coffre);
     }
     let surligne = |e: &&Element| matches!(e, Element::Encre(t) if t.surligneur);

@@ -24,6 +24,10 @@ pub trait Plateforme {
     fn dossier_donnees(&self) -> PathBuf;
     /// Demande une image à l'utilisateur ; la réponse arrive par [`Plateforme::image_choisie`].
     fn demander_image(&mut self);
+    /// Demande un PDF ou une image à annoter ; la réponse arrive aussi par [`Plateforme::image_choisie`].
+    fn demander_document(&mut self) {
+        self.demander_image();
+    }
     /// L'image choisie (nom, octets), une seule fois.
     fn image_choisie(&mut self) -> Option<(String, Vec<u8>)>;
     /// Enregistre un export ; rend l'endroit où il a été mis, ou `None` si la personne a renoncé.
