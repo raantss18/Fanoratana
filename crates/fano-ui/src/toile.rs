@@ -153,10 +153,11 @@ impl Fanoratana {
                 }
             }
         }
-        // Une page vide dit quoi faire.
+        // Une page vide dit quoi faire (pas une page de document à annoter : l'invite le cacherait).
         if let Some(o) = &self.ouverte {
             for (i, r) in reperes.iter().enumerate() {
-                if o.lecon.pages[i].elements.is_empty() && self.geste.is_none() {
+                let p = &o.lecon.pages[i];
+                if p.elements.is_empty() && p.fond_image.is_none() && self.geste.is_none() {
                     let pos = r.ecran(Point::new(72.0, 112.0));
                     let galley = painter.layout(
                         t(self.langue, T::Bienvenue).to_owned(),

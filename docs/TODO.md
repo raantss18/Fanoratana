@@ -106,7 +106,8 @@ Ordre de priorité (chaque étape est utilisable seule) :
 1. ✅ **Image en fond de page** (ADR 0015, via « Insérer › Annoter un PDF ou une image ») : Mes cours › « Importer une image » (et Insérer › « Image en fond de page ») crée une leçon dont
    chaque page a la taille de l'image, l'image verrouillée dessous ; on écrit, tape, dessine par-dessus ; export PDF/PNG tel quel.
    Peu de risque : l'image, l'encre et l'export existent déjà.
-2. ✅ **Importer un PDF** (hayro 0.7 à 2×, sur un fil, au plus 200 pages) : chaque page du PDF devient une page de leçon à sa taille, fond verrouillé. Rendu des pages par
+2. ✅ **Importer un PDF** (hayro 0.7 à 2×, sur un fil, au plus 200 pages ; essayé sur l'émulateur Android le 2026-11-09 : rapport LaTeX
+   de 3 pages net, écriture puis rature par-dessus, le document reste) : chaque page du PDF devient une page de leçon à sa taille, fond verrouillé. Rendu des pages par
    **hayro** (Rust pur, MIT/Apache, déjà vendu dans mahay) à 2× ; licences et poids à mesurer (ADR).
 3. 🟡 **Exporter annoté** (fait : fond en image 144 dpi + annotations vectorielles, `pdf_annote_puis_exporte` ; reste le PDF d'origine en vectoriel) : PDF (fond en image 200 dpi + annotations vectorielles) et PNG par page. Ensuite seulement :
    garder le PDF d'origine en vectoriel (page d'origine en XObject sous les annotations), plus net et plus léger.
