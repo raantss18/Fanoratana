@@ -39,11 +39,17 @@ fn la_feuille_d_antsa_bloc_par_bloc() {
         .iter()
         .map(|l| {
             let ts: Vec<Vec<Point>> = l.traits.iter().map(|&i| traits[i].clone()).collect();
-            fano_reco::structure::lire_formule(&cl, &ts).map(|f| f.latex.chars().filter(|c| !c.is_whitespace()).collect())
+            fano_reco::structure::lire_formule(&cl, &ts)
+                .map(|f| f.latex.chars().filter(|c| !c.is_whitespace()).collect())
         })
         .collect();
     for (b, l) in blocs.iter().zip(&lus) {
-        eprintln!("bloc y {:6.0}..{:6.0} {:3} traits : {l:?}", b.bbox.min.y, b.bbox.max.y, b.traits.len());
+        eprintln!(
+            "bloc y {:6.0}..{:6.0} {:3} traits : {l:?}",
+            b.bbox.min.y,
+            b.bbox.max.y,
+            b.traits.len()
+        );
     }
     assert_eq!(blocs.len(), 6);
     assert_eq!(lus[0].as_deref(), Some("3+5="));

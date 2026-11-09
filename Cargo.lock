@@ -1406,7 +1406,7 @@ dependencies = [
 
 [[package]]
 name = "fano-android"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "android-activity",
  "android_logger",
@@ -1418,7 +1418,7 @@ dependencies = [
 
 [[package]]
 name = "fano-core"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -1427,14 +1427,14 @@ dependencies = [
 
 [[package]]
 name = "fano-ink"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "fano-core",
 ]
 
 [[package]]
 name = "fano-maj"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -1447,7 +1447,7 @@ dependencies = [
 
 [[package]]
 name = "fano-reco"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "anyhow",
  "fano-core",
@@ -1461,7 +1461,7 @@ dependencies = [
 
 [[package]]
 name = "fano-render"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "base64 0.22.1",
  "fano-core",
@@ -1478,7 +1478,7 @@ dependencies = [
 
 [[package]]
 name = "fano-ui"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "egui",
  "egui_kittest",
@@ -1499,7 +1499,7 @@ dependencies = [
 
 [[package]]
 name = "fanoratana"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "dirs",
  "eframe",

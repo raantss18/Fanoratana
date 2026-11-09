@@ -2,6 +2,8 @@
 
 ## [Non publié]
 
+## [0.0.2] — 2026-11-09
+
 - Texte ou formule tranché tout seul ; une formule écrite entre deux `$` à la main est toujours lue en formule ; « sur R » devient ℝ, une lettre seule devient une variable.
 
 - Systèmes (accolade) et matrices lus et mis au propre ; page de cours lue par blocs (fractions, limites, matrices d'un seul tenant).
@@ -9,6 +11,18 @@
 - La lecture Google (ML Kit) se télécharge enfin sur Android ; Réglages lisibles en fenêtre étroite.
 
 - Formules lues à leur structure, signe par signe (modèle de Fikajiana) : fractions, racines, exposants, indices, `lim` et sa flèche, `Σ`, `∫` ; une formule douteuse reste à valider au lieu d'être inventée.
+
+### Message fr
+Première version en ligne : écris ton cours au doigt, au stylet ou au clavier, il se met au propre.
+Les maths au propre : formules écrites à la main lues à leur structure (fractions, racines, limites, sommes, intégrales,
+systèmes et matrices). Entoure une formule de deux `$` pour qu'elle soit toujours lue en formule ; « sur R » devient ℝ.
+Nouvel écran « À propos ».
+
+### Message en
+First public release: write your lesson with your finger, a stylus or the keyboard, and it gets tidied up.
+Maths tidied up: handwritten formulas are read by their structure (fractions, roots, limits, sums, integrals, systems
+and matrices). Write two `$` around a formula to always have it read as a formula; "on R" becomes ℝ.
+New "About" screen.
 
 ## [0.0.1] — 2026-11-08
 
