@@ -276,3 +276,39 @@ fn ecrans() {
         let _ = h;
     });
 }
+
+/// Le titre de la leçon s'arrête avant « Insérer », du portrait étroit au paysage (signalé sur le Pad 7, 2026-11-09).
+#[test]
+fn le_titre_ne_passe_pas_sous_inserer() {
+    use egui_kittest::kittest::Queryable;
+    for largeur in [360.0, 420.0, 600.0, 800.0, 1280.0] {
+        let dir = tempfile::tempdir().unwrap();
+        preparer(dir.path());
+        let mut faux = Some(Faux(dir.path().to_path_buf()));
+        let mut h = Harness::builder()
+            .with_size(egui::vec2(largeur, 900.0))
+            .build_ui_state(
+                move |ui, etat: &mut Option<Fanoratana>| {
+                    if etat.is_none() {
+                        if let Some(f) = faux.take() {
+                            *etat = Some(Fanoratana::new(ui.ctx(), Box::new(f)));
+                        }
+                    }
+                    if let Some(a) = etat.as_mut() {
+                        a.logic(&ui.ctx().clone());
+                        a.ui(ui);
+                    }
+                },
+                None,
+            );
+        h.run_steps(8);
+        let titre = h.get_by_label_contains("Révolution").rect();
+        let inserer = h.get_by_label("Insérer").rect();
+        assert!(
+            titre.right() <= inserer.left(),
+            "largeur {largeur} : titre jusqu'à {} et Insérer dès {}",
+            titre.right(),
+            inserer.left()
+        );
+    }
+}

@@ -56,14 +56,16 @@
 - ✅ « Mise à jour impossible : 404 » quand aucune version n'est publiée : ce n'est plus une erreur.
 - ✅ Un √ tracé au-dessus de x devenait une forme : un trait ouvert qui coiffe de l'écriture reste un signe.
 - ✅ Réglages en fenêtre étroite : la fenêtre ne déborde plus (capture `reglages-etroit`).
-- ⬜ En portrait étroit, le titre de la leçon passe sous « Insérer ».
+- ✅ En portrait étroit, le titre de la leçon passait sous « Insérer » : sa largeur se règle sur la place laissée par le coin
+  haut droit (`le_titre_ne_passe_pas_sous_inserer`, de 360 à 1280 de large).
 - ✅ Écran « À propos » (version, licence, coordonnées d'Antsa).
 
 - ✅ Les `$` d'Antsa (S plus large que haut) n'étaient pas reconnus ; les traits après un `$` ouvert étaient perdus au lieu
   d'attendre le second (`tests/ecriture_antsa.rs`, traits du Pad 7 du 2026-11-09).
 - ✅ `\mathbb{R}` lu juste par Google mais écrit en texte : une commande LaTeX écrite à la main devient une formule.
 - ✅ `f(x)=mx+p` : Pix2Text le lisait juste, la lecture par signes douteuse (« μJc)=m1C+7 ») l'emportait ; Pix2Text gagne.
-- ⬜ Un gribouillis de rature lu « m » (lecture 2 du journal du 2026-11-09) : à reproduire.
+- 🟡 Un gribouillis de rature lu « m » (lecture 2 du journal du 2026-11-09, traits perdus) : cause probable corrigée, un mot
+  rayé de va-et-vient verticaux (« mmmm ») n'était pas compté (`mot_raye_de_haut_en_bas`) ; à confirmer au stylet.
 
 ## 1. Version 0.0.1 (2026-11-08)
 
@@ -88,16 +90,16 @@
 - 🟡 Essai complet au doigt par Antsa : rature, gomme, formes tenues, sélection, diapos, export PDF vers Documents.
 - 🟡 Mise à jour réelle de 0.0.1 vers 0.0.2 sur la tablette (la 0.0.1 est la première : rien à tester avant la 0.0.2).
 
-## 2. Interface d'après Fikajiana (Antsa, 2026-11-08) — en cours
+## 2. Interface d'après Fikajiana (Antsa, 2026-11-08) — faite (vérifiée sur les captures le 2026-11-09)
 
-1. ⬜ Feuille plein écran, plus de rail ; quatre coins flottants (docs/design.md § Écran).
-2. ⬜ Bouton Outils à la couleur du stylo (bas droite) + Annuler/Rétablir à côté ; carte Outils en lignes nommées.
-3. ⬜ « + Insérer » et « ⋯ Menu » en haut à droite ; « ≡ » + titre du cours en haut à gauche ; « Taper un texte » en bas à gauche.
-4. ⬜ Réglages en écran à part, en sections (Écriture, Lecture, Langue, Mises à jour, À propos).
-5. ⬜ Mes cours en panneau par-dessus (il ne pousse plus la feuille).
-6. ⬜ Captures, essai sur la tablette (portrait et paysage), contraste et cibles ≥ 48 dp.
+1. ✅ Feuille plein écran, plus de rail ; quatre coins flottants (docs/design.md § Écran).
+2. ✅ Bouton Outils à la couleur du stylo (bas droite) + Annuler/Rétablir à côté ; carte Outils en lignes nommées.
+3. ✅ « + Insérer » et « ⋯ Menu » en haut à droite ; « ≡ » + titre du cours en haut à gauche ; « Taper un texte » en bas à gauche.
+4. ✅ Réglages en écran à part, en sections (Écriture, Lecture, Langue, Mises à jour, À propos).
+5. ✅ Mes cours en panneau par-dessus (il ne pousse plus la feuille).
+6. 🟡 Captures faites ; reste l'essai sur la tablette (portrait et paysage), contraste et cibles ≥ 48 dp.
 
-## 3. Annoter un PDF ou une image (demande d'Antsa, 2026-11-08) — prochaine version 0.0.2
+## 3. Annoter un PDF ou une image (demande d'Antsa, 2026-11-08) — prochaine version
 
 Ordre de priorité (chaque étape est utilisable seule) :
 

@@ -145,7 +145,21 @@ impl Fanoratana {
         let ecran = Rect::from_min_max(tout.min + vec2(g, h), tout.max - vec2(d, b));
         let (g, d, b) = (g, d, b);
         let haut = ecran.top() + self.decalage_haut;
-        // Haut gauche : Mes cours et le titre de la leçon.
+        // Haut droit : Insérer et le Menu.
+        let bord_droit = egui::Area::new("coin-haut-droit".into())
+            .anchor(Align2::RIGHT_TOP, vec2(-MARGE - d, haut - tout.top() + MARGE))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    let inserer = pastille(ui, Icone::Inserer, t(l, T::Inserer));
+                    egui::Popup::menu(&inserer).show(|ui| self.menu_inserer(ui));
+                    let menu = rond(ui, Icone::Plus, t(l, T::Menu), false);
+                    egui::Popup::menu(&menu).show(|ui| self.menu_principal(ui));
+                });
+            })
+            .response
+            .rect
+            .left();
+        // Haut gauche : Mes cours et le titre de la leçon, qui s'arrête avant « Insérer » (portrait étroit, 2026-11-09).
         egui::Area::new("coin-haut-gauche".into())
             .fixed_pos(Pos2::new(ecran.left() + MARGE, haut + MARGE))
             .show(ctx, |ui| {
@@ -156,7 +170,9 @@ impl Fanoratana {
                     }
                     if let Some(o) = &self.ouverte {
                         let titre = format!("{} — {}", o.fil, o.lecon.titre);
-                        let largeur_max = (ecran.width() - 330.0).max(120.0);
+                        // Ce qui reste entre le bouton Mes cours (48 + écart) et « Insérer », marges du cadre comprises.
+                        let largeur_max =
+                            (bord_droit - (ecran.left() + MARGE) - 48.0 - 8.0 - 28.0 - MARGE).max(48.0);
                         Frame::new()
                             .fill(BOUTON)
                             .corner_radius(20)
@@ -175,17 +191,6 @@ impl Fanoratana {
                                 }
                             });
                     }
-                });
-            });
-        // Haut droit : Insérer et le Menu.
-        egui::Area::new("coin-haut-droit".into())
-            .anchor(Align2::RIGHT_TOP, vec2(-MARGE - d, haut - tout.top() + MARGE))
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    let inserer = pastille(ui, Icone::Inserer, t(l, T::Inserer));
-                    egui::Popup::menu(&inserer).show(|ui| self.menu_inserer(ui));
-                    let menu = rond(ui, Icone::Plus, t(l, T::Menu), false);
-                    egui::Popup::menu(&menu).show(|ui| self.menu_principal(ui));
                 });
             });
         // Bas gauche : taper au clavier.
