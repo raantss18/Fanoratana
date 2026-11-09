@@ -36,6 +36,12 @@ fn maintenant_s() -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
+/// Faut-il chercher une mise à jour maintenant (sans qu'on l'ait demandé) ?
+pub(crate) fn faut_chercher(premiere: bool, auto: bool, maintenant: u64, reussie: u64, tentee: u64) -> bool {
+    auto && (premiere
+        || (maintenant.saturating_sub(reussie) > 6 * 3600 && maintenant.saturating_sub(tentee) > 30 * 60))
+}
+
 impl Fanoratana {
     /// Cherche une mise à jour (sur un fil) ; `demandee` : la personne l'a demandé (on lui répond même si tout est à jour).
     pub(crate) fn chercher_maj(&mut self, ctx: &egui::Context, demandee: bool) {
@@ -46,8 +52,7 @@ impl Fanoratana {
             return;
         }
         *self.maj.lock().unwrap() = EtatMaj::Recherche { demandee };
-        self.reglages.derniere_verif = maintenant_s();
-        self.reglages.ecrire(&self.dossier);
+        self.maj_tentee = maintenant_s();
         let etat = self.maj.clone();
         let ctx = ctx.clone();
         std::thread::spawn(move || {
@@ -61,9 +66,32 @@ impl Fanoratana {
         });
     }
 
-    /// Une fois par jour, au démarrage, si le réglage le permet.
+    /// À chaque ouverture, puis toutes les 6 h tant que l'app reste ouverte (Android la garde en arrière-plan),
+    /// si le réglage le permet. Seule une recherche réussie compte : une recherche faite avant la publication
+    /// (404) ou sans réseau ne repousse pas la suivante d'un jour (Pad 7, 2026-11-09 : 0.0.2 jamais proposée).
     pub(crate) fn maj_quotidienne(&mut self, ctx: &egui::Context) {
-        if self.reglages.maj_auto && maintenant_s().saturating_sub(self.reglages.derniere_verif) > 24 * 3600 {
+        let etat = self.maj.lock().unwrap().clone();
+        if matches!(etat, EtatMaj::AJour { .. } | EtatMaj::Dispo(_))
+            && self.reglages.derniere_verif < self.maj_tentee
+        {
+            self.reglages.derniere_verif = self.maj_tentee;
+            self.reglages.ecrire(&self.dossier);
+        }
+        let premiere = !self.maj_lancee;
+        self.maj_lancee = true;
+        let libre = matches!(
+            etat,
+            EtatMaj::Rien | EtatMaj::AJour { demandee: false } | EtatMaj::Erreur { demandee: false, .. }
+        );
+        if libre
+            && faut_chercher(
+                premiere,
+                self.reglages.maj_auto,
+                maintenant_s(),
+                self.reglages.derniere_verif,
+                self.maj_tentee,
+            )
+        {
             self.chercher_maj(ctx, false);
         }
     }
@@ -193,5 +221,26 @@ impl Fanoratana {
                 self.dire(m);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::faut_chercher;
+
+    #[test]
+    fn une_recherche_ratee_ne_bloque_pas_la_suivante() {
+        let h = 3600;
+        let t0 = 1_000_000;
+        // À chaque ouverture, même si on a cherché il y a une minute.
+        assert!(faut_chercher(true, true, t0, t0 - 60, t0 - 60));
+        // Réglage coupé : jamais.
+        assert!(!faut_chercher(true, false, t0, 0, 0));
+        // App restée ouverte : la version publiée après une recherche ratée (404) est proposée dans l'heure.
+        assert!(!faut_chercher(false, true, t0, 0, t0 - 10 * 60));
+        assert!(faut_chercher(false, true, t0, 0, t0 - 31 * 60));
+        // Après une recherche réussie : pas avant 6 h.
+        assert!(!faut_chercher(false, true, t0, t0 - 5 * h, t0 - 5 * h));
+        assert!(faut_chercher(false, true, t0, t0 - 7 * h, t0 - 7 * h));
     }
 }

@@ -162,7 +162,7 @@ textes! {
     ModeleErreur => "Le téléchargement a échoué : réessaie avec une connexion.", "The download failed: try again when online.";
     ModeleMettreAJour => "Mettre à jour le modèle", "Update the model";
     ChercherMaj => "Rechercher une mise à jour", "Check for updates";
-    MajAuto => "Chercher les mises à jour chaque jour", "Check for updates every day";
+    MajAuto => "Chercher les mises à jour toute seule", "Check for updates automatically";
     MajRecherche => "Recherche d'une mise à jour…", "Checking for updates…";
     AJour => "Fanoratana est à jour.", "Fanoratana is up to date.";
     MajDispo => "est disponible", "is available";

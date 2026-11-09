@@ -11,7 +11,9 @@
    chemins explicites (jamais `git add -A`) ; `main` toujours vert (`cargo test --workspace`).
 3. **Ne jamais dire « fini » sans l'avoir fait tourner** : tests, captures (`FANO_CAPTURES=<dir> cargo test -p fano-ui --test captures`),
    puis essai sur une **tablette Xiaomi Pad 7** : `a11fafee` (Antsa y écrit au stylet, 2026-11-08) ou `8df629a` (sans stylet) ;
-   jamais d'émulateur.
+   sinon l'émulateur `fanoratana_tab` (permis par Antsa le 2026-11-09), **le plus léger possible** (d'autres projets tournent) :
+   `env -u DISPLAY emulator -avd fanoratana_tab -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -memory 2048 -cores 2`,
+   arrêté après l'essai (`adb emu kill`).
    Ne pas injecter de gestes pendant qu'Antsa s'en sert.
 4. **Libre et hors ligne** : GPL-3.0-or-later, avec une seule exception, ML Kit Digital Ink sur Android, choisie par Antsa
    (ADR 0012, `LICENSE-EXCEPTION-MLKIT.md`) : accord demandé à l'utilisateur, révocable, l'app marche sans ; dépendances et poids sous licence compatible, notés dans `THIRD_PARTY_LICENSES.md` ;

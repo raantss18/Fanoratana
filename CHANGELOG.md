@@ -2,6 +2,8 @@
 
 ## [Non publié]
 
+- Les mises à jour sont cherchées à chaque ouverture puis toutes les 6 h ; un téléchargement refusé par GitHub (504) est réessayé puis passe par l'API.
+
 ## [0.0.2] — 2026-11-09
 
 - Texte ou formule tranché tout seul ; une formule écrite entre deux `$` à la main est toujours lue en formule ; « sur R » devient ℝ, une lettre seule devient une variable.

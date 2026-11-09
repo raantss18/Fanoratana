@@ -20,6 +20,11 @@ use sha2::{Digest, Sha256};
 
 /// Où sont les fichiers de la dernière version.
 pub const ADRESSE: &str = "https://github.com/raantss18/Fanoratana/releases/latest/download";
+/// Les mêmes fichiers par l'API de GitHub : le secours quand l'adresse directe répond 5xx (504 relevés le
+/// 2026-11-09 sur `releases/download/…`, alors que l'API servait les fichiers).
+const API: &str = "https://api.github.com/repos/raantss18/Fanoratana/releases";
+
+type Reponse = ureq::http::Response<ureq::Body>;
 /// La clé publique des mises à jour (la privée reste dans `release-keys/`, jamais publiée).
 pub const CLE_PUBLIQUE: &str = include_str!("../../../brand/maj-ed25519.pub");
 
@@ -90,8 +95,66 @@ fn agent() -> ureq::Agent {
         .into()
 }
 
-fn lire(url: &str, max: u64) -> Result<Vec<u8>, String> {
-    let mut rep = agent().get(url).call().map_err(|e| e.to_string())?;
+/// Une requête GET, réessayée deux fois quand le serveur répond 5xx ou que la connexion tombe.
+fn get(url: &str, binaire: bool) -> Result<Reponse, String> {
+    let mut essai = 0;
+    loop {
+        let mut req = agent().get(url);
+        if binaire {
+            req = req.header("Accept", "application/octet-stream");
+        }
+        match req.call() {
+            Ok(r) => return Ok(r),
+            Err(ureq::Error::StatusCode(c)) if c < 500 || essai >= 2 => {
+                return Err(format!("http status: {c}"));
+            }
+            Err(e) if essai >= 2 => return Err(e.to_string()),
+            Err(_) => {
+                essai += 1;
+                std::thread::sleep(std::time::Duration::from_secs(2 * essai));
+            }
+        }
+    }
+}
+
+/// Le fichier `nom` d'une version publiée (`None` : la dernière) : l'adresse directe, sinon l'API.
+fn fichier_publie(version: Option<&str>, nom: &str) -> Result<Reponse, String> {
+    let direct = match version {
+        Some(v) => format!("https://github.com/raantss18/Fanoratana/releases/download/v{v}/{nom}"),
+        None => format!("{ADRESSE}/{nom}"),
+    };
+    match get(&direct, false) {
+        Ok(r) => Ok(r),
+        // Pas publié : l'API n'en dira pas plus.
+        Err(e) if e.contains("404") => Err(e),
+        Err(e) => par_api(version, nom).map_err(|e2| format!("{e} ; API : {e2}")),
+    }
+}
+
+fn par_api(version: Option<&str>, nom: &str) -> Result<Reponse, String> {
+    let url = match version {
+        Some(v) => format!("{API}/tags/v{v}"),
+        None => format!("{API}/latest"),
+    };
+    let mut rep = get(&url, false)?;
+    let mut json = Vec::new();
+    rep.body_mut()
+        .as_reader()
+        .take(1 << 20)
+        .read_to_end(&mut json)
+        .map_err(|e| e.to_string())?;
+    let id = id_du_fichier(&json, nom).ok_or_else(|| format!("{nom} absent de la version"))?;
+    get(&format!("{API}/assets/{id}"), true)
+}
+
+/// L'identifiant du fichier `nom` dans la réponse de l'API (`assets[].name`, `assets[].id`).
+fn id_du_fichier(json: &[u8], nom: &str) -> Option<u64> {
+    let v: serde_json::Value = serde_json::from_slice(json).ok()?;
+    v["assets"].as_array()?.iter().find(|a| a["name"] == nom)?["id"].as_u64()
+}
+
+fn lire(rep: Result<Reponse, String>, max: u64) -> Result<Vec<u8>, String> {
+    let mut rep = rep?;
     let mut v = Vec::new();
     rep.body_mut()
         .as_reader()
@@ -104,11 +167,11 @@ fn lire(url: &str, max: u64) -> Result<Vec<u8>, String> {
 /// Lit et vérifie la dernière version publiée. `Ok(None)` : on est à jour.
 pub fn chercher(actuelle: &str) -> Result<Option<Version>, String> {
     // Aucune version publiée (404) : rien à installer, ce n'est pas une erreur.
-    let json = match lire(&format!("{ADRESSE}/release.json"), 1 << 20) {
+    let json = match lire(fichier_publie(None, "release.json"), 1 << 20) {
         Err(e) if e.contains("404") => return Ok(None),
         r => r?,
     };
-    let sig = lire(&format!("{ADRESSE}/release.json.sig"), 4096)?;
+    let sig = lire(fichier_publie(None, "release.json.sig"), 4096)?;
     verifier(&json, &String::from_utf8_lossy(&sig))?;
     let v: Version = serde_json::from_slice(&json).map_err(|e| e.to_string())?;
     Ok((plus_recente(&v.version, actuelle) && v.fichiers.contains_key(plateforme())).then_some(v))
@@ -118,11 +181,7 @@ pub fn chercher(actuelle: &str) -> Result<Option<Version>, String> {
 pub fn telecharger(v: &Version, dossier: &Path, progres: impl Fn(f32)) -> Result<PathBuf, String> {
     let f = v.fichiers.get(plateforme()).ok_or("rien pour cette plateforme")?;
     std::fs::create_dir_all(dossier).map_err(|e| e.to_string())?;
-    let url = format!(
-        "https://github.com/raantss18/Fanoratana/releases/download/v{}/{}",
-        v.version, f.nom
-    );
-    let mut rep = agent().get(&url).call().map_err(|e| e.to_string())?;
+    let mut rep = fichier_publie(Some(&v.version), &f.nom)?;
     let mut lecteur = rep.body_mut().with_config().limit(f.taille + 1024).reader();
     let dest = dossier.join(&f.nom);
     let mut sortie = std::fs::File::create(&dest).map_err(|e| e.to_string())?;
@@ -158,7 +217,7 @@ pub fn telecharger_fichier(
     if let Some(d) = dest.parent() {
         std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
     }
-    let mut rep = agent().get(url).call().map_err(|e| e.to_string())?;
+    let mut rep = get(url, false)?;
     let mut lecteur = rep.body_mut().with_config().limit(taille + 1024).reader();
     let tmp = dest.with_extension("partiel");
     let mut sortie = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
@@ -208,6 +267,30 @@ mod tests {
         assert!(plus_recente("1.0.0", "0.9.9"));
         assert!(!plus_recente("0.0.1", "0.0.1"));
         assert!(plus_recente("v0.0.10", "0.0.9"));
+    }
+
+    #[test]
+    fn fichier_trouve_dans_la_reponse_de_l_api() {
+        let json = br#"{"tag_name":"v0.0.2","assets":[{"id":7,"name":"release.json"},{"id":726274269,"name":"fanoratana-arm64-v8a.apk"}]}"#;
+        assert_eq!(id_du_fichier(json, "fanoratana-arm64-v8a.apk"), Some(726274269));
+        assert_eq!(id_du_fichier(json, "absent"), None);
+        assert_eq!(id_du_fichier(b"pas du json", "release.json"), None);
+    }
+
+    /// Le secours par l'API sur la vraie version publiée (`FANO_RESEAU=1`, réseau requis).
+    #[test]
+    fn secours_par_l_api() {
+        if std::env::var("FANO_RESEAU").is_err() {
+            return;
+        }
+        let json = lire(par_api(None, "release.json"), 1 << 20).unwrap();
+        let sig = lire(par_api(None, "release.json.sig"), 4096).unwrap();
+        verifier(&json, &String::from_utf8_lossy(&sig)).unwrap();
+        let v: Version = serde_json::from_slice(&json).unwrap();
+        let mut rep = par_api(Some(&v.version), "fanoratana.svg").unwrap();
+        let mut svg = Vec::new();
+        rep.body_mut().as_reader().read_to_end(&mut svg).unwrap();
+        assert!(String::from_utf8_lossy(&svg).contains("<svg"));
     }
 
     #[test]

@@ -21,9 +21,9 @@ pub struct Reglages {
     pub coffre: String,
     /// La dernière leçon ouverte.
     pub derniere_lecon: String,
-    /// Chercher les mises à jour une fois par jour.
+    /// Chercher les mises à jour à l'ouverture, puis toutes les 6 h.
     pub maj_auto: bool,
-    /// Dernière recherche (secondes depuis 1970).
+    /// Dernière recherche réussie (secondes depuis 1970).
     pub derniere_verif: u64,
     /// La lecture Google (ML Kit, Android) : `None` tant que la personne n'a pas choisi.
     pub lecture_google: Option<bool>,

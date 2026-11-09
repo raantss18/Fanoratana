@@ -153,7 +153,9 @@ pub struct Fanoratana {
     /// egui ne prend les polices qu'à l'image suivante : la première est sautée.
     polices_pretes: bool,
     pub(crate) maj: crate::maj::Partage,
-    maj_lancee: bool,
+    pub(crate) maj_lancee: bool,
+    /// Dernière recherche de mise à jour tentée (secondes), réussie ou non.
+    pub(crate) maj_tentee: u64,
     pub(crate) largeur_vue: f32,
     pub(crate) mode_lecture: ModeLecture,
     pub(crate) tableau_taille: (usize, usize),
@@ -247,6 +249,7 @@ impl Fanoratana {
             polices_pretes: false,
             maj: Default::default(),
             maj_lancee: false,
+            maj_tentee: 0,
             largeur_vue: 0.0,
             mode_lecture: ModeLecture::Auto,
             tableau_taille: (3, 3),
@@ -393,10 +396,7 @@ impl Fanoratana {
     /// Le travail de chaque image, même sans interaction.
     pub fn logic(&mut self, ctx: &egui::Context) {
         self.maintenant = ctx.input(|i| i.time);
-        if !self.maj_lancee {
-            self.maj_lancee = true;
-            self.maj_quotidienne(ctx);
-        }
+        self.maj_quotidienne(ctx);
         self.installer_maj_prete();
         self.recevoir_lectures();
         self.recevoir_lectures_google();

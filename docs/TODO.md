@@ -4,6 +4,11 @@
 
 ## 0. Erreurs signalées (ne reviennent jamais)
 
+- ✅ 0.0.2 publiée mais jamais proposée dans l'app (2026-11-09) : une recherche faite avant la publication (ou sans réseau)
+  bloquait la suivante un jour → recherche à chaque ouverture puis toutes les 6 h, seule une recherche réussie compte
+  (`une_recherche_ratee_ne_bloque_pas_la_suivante`) ; GitHub répondait 504 sur `releases/download/…` → deux nouveaux essais
+  puis secours par l'API (`secours_par_l_api`, `FANO_RESEAU=1`). Vérifié sur émulateur : bandeau à l'ouverture, téléchargement
+  vérifié, installeur d'Android ouvert.
 - ✅ Écriture d'Antsa au stylet (Pad 7 a11fafee, 2026-11-08) : « Je veux voir » lu « fe voux vor », « 1- Important » lu
   « 1- Impontant » → correction des mots incertains par lexique français, une faute au plus (`lexique::lectures_du_pad7`) ;
   « médiatrice » n'est jamais changé (`un_mot_sur_ou_rare_et_juste_reste`).
