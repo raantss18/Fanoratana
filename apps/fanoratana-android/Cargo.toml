@@ -1,7 +1,7 @@
 [package]
 name = "fanoratana-android"
 description = "Fanoratana sur Android : la même interface que sur Linux."
-version = "0.0.3"
+version = "0.0.4"
 edition = "2024"
 license = "GPL-3.0-or-later"
 publish = false

@@ -2,9 +2,19 @@
 
 ## [Non publié]
 
+## [0.0.4] — 2026-11-10
+
 - Annoter un PDF ou une image : « Insérer › Annoter un PDF ou une image » en fait une leçon dont chaque page garde le document
   dessous ; on écrit, tape et dessine par-dessus sans jamais l'effacer, et l'export PDF ou PNG garde tout.
 - Le titre de la leçon ne passe plus sous « Insérer » en portrait étroit ; un mot rayé de va-et-vient verticaux est effacé.
+
+### Message fr
+Annote un PDF ou une photo : « Insérer › Annoter un PDF ou une image » en fait une leçon ; écris, tape et dessine
+par-dessus sans jamais effacer le document, puis exporte-le en PDF. Rayer un mot de haut en bas l'efface aussi.
+
+### Message en
+Annotate a PDF or a photo: "Insert › Annotate a PDF or an image" turns it into a lesson; write, type and draw
+over it without ever erasing the document, then export it as PDF. Crossing a word out up and down erases it too.
 
 ## [0.0.3] — 2026-11-09
 
