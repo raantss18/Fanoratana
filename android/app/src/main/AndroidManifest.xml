@@ -33,6 +33,23 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- « Ouvrir avec Fanoratana » : un PDF ou une image à annoter (ADR 0015). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="image/png" />
+                <data android:mimeType="image/jpeg" />
+            </intent-filter>
+            <!-- « Partager vers Fanoratana ». -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="image/png" />
+                <data android:mimeType="image/jpeg" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>

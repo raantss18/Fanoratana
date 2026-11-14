@@ -2,6 +2,8 @@
 
 ## [Non publié]
 
+- « Ouvrir avec Fanoratana » et « Partager vers Fanoratana » sur Android pour un PDF ou une image ; sur Linux, glisser le fichier sur la fenêtre ou lancer `fanoratana fichier.pdf`.
+
 ## [0.0.4] — 2026-11-10
 
 - Annoter un PDF ou une image : « Insérer › Annoter un PDF ou une image » en fait une leçon dont chaque page garde le document

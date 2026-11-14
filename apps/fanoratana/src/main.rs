@@ -96,10 +96,14 @@ fn main() -> eframe::Result {
         "Fanoratana",
         options,
         Box::new(|cc| {
-            Ok(Box::new(Appli(Fanoratana::new(
-                &cc.egui_ctx,
-                Box::new(Bureau { image: None }),
-            ))))
+            let mut app = Fanoratana::new(&cc.egui_ctx, Box::new(Bureau { image: None }));
+            // `fanoratana sujet.pdf photo.jpg` : chaque fichier devient une leçon à annoter.
+            for f in std::env::args_os().skip(1).map(PathBuf::from) {
+                if let (Some(nom), Ok(octets)) = (f.file_name(), std::fs::read(&f)) {
+                    app.recevoir_document(nom.to_string_lossy().into_owned(), octets);
+                }
+            }
+            Ok(Box::new(Appli(app)))
         }),
     )
 }

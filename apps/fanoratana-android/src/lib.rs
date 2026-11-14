@@ -130,8 +130,14 @@ mod android {
             self.pont.raw_input_hook(raw);
         }
         fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-            // Copie les exports vers l'endroit choisi par la personne.
-            let _ = fano_android::poll();
+            // Copie les exports vers l'endroit choisi par la personne ; reçoit les documents envoyés par une
+            // autre app (« Ouvrir avec », « Partager vers Fanoratana »).
+            let (recus, _) = fano_android::poll();
+            for p in recus {
+                if let Ok(octets) = std::fs::read(&p.path) {
+                    self.app.recevoir_document(p.name, octets);
+                }
+            }
             self.app.logic(ctx);
         }
         fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {

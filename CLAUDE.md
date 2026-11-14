@@ -10,7 +10,7 @@
 2. **Rien casser** : une décision = un ADR ≤ 15 lignes (`docs/adr/NNNN-titre.md`) ; commits courts en français (Conventional Commits),
    chemins explicites (jamais `git add -A`) ; `main` toujours vert (`cargo test --workspace`).
 3. **Ne jamais dire « fini » sans l'avoir fait tourner** : tests, captures (`FANO_CAPTURES=<dir> cargo test -p fano-ui --test captures`),
-   puis essai sur une **tablette Xiaomi Pad 7** : `a11fafee` (Antsa y écrit au stylet, 2026-11-08) ou `8df629a` (sans stylet) ;
+   puis essai sur une **tablette Xiaomi Pad 7** : `a11fafee` (Antsa y écrit au stylet, 2026-11-08) ou `8df629a` (celle de Sariaka, sans stylet : ne pas ouvrir ses fichiers) ;
    sinon l'émulateur `fanoratana_tab` (permis par Antsa le 2026-11-09), **le plus léger possible** (d'autres projets tournent) :
    `env -u DISPLAY emulator -avd fanoratana_tab -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -memory 2048 -cores 2`,
    arrêté après l'essai (`adb emu kill`).

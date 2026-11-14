@@ -83,21 +83,49 @@ pub(crate) fn ranger(coffre: &fano_core::Coffre, chapitre: &Path, p: Pret) -> Re
     Ok(chemin)
 }
 
+/// Le chapitre « Documents › À annoter » du coffre, créé s'il manque.
+pub(crate) fn chapitre_des_documents(
+    coffre: &fano_core::Coffre,
+    langue: crate::textes::Langue,
+) -> Result<PathBuf, String> {
+    let (niveau, chapitre) = (t(langue, T::NiveauDocuments), t(langue, T::ChapitreAAnnoter));
+    let trouve = |dans: &Path, nom: &str| {
+        std::fs::read_dir(dans)
+            .ok()?
+            .flatten()
+            .map(|e| e.path())
+            .find(|p| p.is_dir() && fano_core::coffre::nom_montre(p) == nom)
+    };
+    let n = match trouve(&coffre.racine, niveau) {
+        Some(n) => n,
+        None => coffre.creer_niveau(niveau).map_err(|e| e.to_string())?,
+    };
+    match trouve(&n, chapitre) {
+        Some(c) => Ok(c),
+        None => coffre.creer_chapitre(&n, chapitre).map_err(|e| e.to_string()),
+    }
+}
+
 impl Fanoratana {
     /// « Annoter un PDF ou une image » : demande le fichier.
     pub(crate) fn demander_document(&mut self) {
-        if self.chapitre_courant().is_none() {
-            let m = t(self.langue, T::AnnoterSansChapitre).to_owned();
-            self.dire(m);
-            return;
-        }
         self.document_demande = true;
         self.plateforme.demander_document();
     }
 
-    /// Le chapitre de la leçon ouverte : la leçon annotée s'y range.
-    fn chapitre_courant(&self) -> Option<PathBuf> {
-        self.ouverte.as_ref()?.chemin.parent().map(Path::to_path_buf)
+    /// Un document reçu d'ailleurs (« Ouvrir avec », « Partager vers Fanoratana », glisser-déposer, fichier
+    /// donné au lancement) : il attend son tour, puis devient une leçon à annoter.
+    pub fn recevoir_document(&mut self, nom: String, octets: Vec<u8>) {
+        self.documents_recus.push((nom, octets));
+    }
+
+    /// Où ranger la leçon annotée : le chapitre de la leçon ouverte ; sans leçon ouverte (document reçu d'une
+    /// autre app), le chapitre « Documents › À annoter », créé au besoin.
+    fn chapitre_pour_document(&self) -> Result<PathBuf, String> {
+        if let Some(c) = self.ouverte.as_ref().and_then(|o| o.chemin.parent()) {
+            return Ok(c.to_path_buf());
+        }
+        chapitre_des_documents(&self.coffre, self.langue)
     }
 
     /// Le fichier choisi : préparé sur un fil.
@@ -118,8 +146,31 @@ impl Fanoratana {
     }
 
     /// Chaque image : la progression, puis la leçon ouverte.
-    pub(crate) fn suivre_import(&mut self) {
-        let Some(etat) = self.import.clone() else { return };
+    pub(crate) fn suivre_import(&mut self, ctx: &egui::Context) {
+        // Les fichiers lâchés sur la fenêtre (Linux).
+        let laches = ctx.input_mut(|i| std::mem::take(&mut i.raw.dropped_files));
+        for f in laches {
+            let nom = f
+                .path()
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "document".into());
+            match f.bytes() {
+                Ok(o) => self.recevoir_document(nom, o),
+                Err(e) => {
+                    let m = format!("{} {e}", t(self.langue, T::Erreur));
+                    self.dire(m);
+                }
+            }
+        }
+        let Some(etat) = self.import.clone() else {
+            // Rien en cours : le document reçu suivant.
+            if !self.documents_recus.is_empty() {
+                let (nom, octets) = self.documents_recus.remove(0);
+                self.importer_document(nom, octets, ctx);
+            }
+            return;
+        };
         let fini = std::mem::take(&mut *etat.lock().unwrap());
         match fini {
             Import::Rien => {}
@@ -134,10 +185,8 @@ impl Fanoratana {
             }
             Import::Pret(r) => {
                 self.import = None;
-                let Some(chapitre) = self.chapitre_courant() else {
-                    return;
-                };
-                match r.and_then(|p| ranger(&self.coffre, &chapitre, p)) {
+                let chapitre = self.chapitre_pour_document();
+                match r.and_then(|p| ranger(&self.coffre, &chapitre?, p)) {
                     Ok(chemin) => {
                         self.rafraichir_arbre();
                         self.ouvrir(chemin);
@@ -163,6 +212,18 @@ mod tests {
         assert_eq!(titre_de("Sujet bac 2024.pdf"), "Sujet bac 2024");
         assert_eq!(titre_de("photo.JPG"), "photo");
         assert_eq!(titre_de(".pdf"), "Document");
+    }
+
+    #[test]
+    fn un_document_recu_sans_lecon_ouverte_a_son_chapitre() {
+        let dir = tempfile::tempdir().unwrap();
+        let coffre = fano_core::Coffre::ouvrir(dir.path()).unwrap();
+        let c1 = chapitre_des_documents(&coffre, crate::textes::Langue::Fr).unwrap();
+        // La seconde fois, le même chapitre (pas de doublon).
+        let c2 = chapitre_des_documents(&coffre, crate::textes::Langue::Fr).unwrap();
+        assert_eq!(c1, c2);
+        assert_eq!(fano_core::coffre::nom_montre(&c1), "À annoter");
+        assert_eq!(fano_core::coffre::nom_montre(c1.parent().unwrap()), "Documents");
     }
 
     #[test]

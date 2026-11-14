@@ -111,7 +111,8 @@ Ordre de priorité (chaque étape est utilisable seule) :
    **hayro** (Rust pur, MIT/Apache, déjà vendu dans mahay) à 2× ; licences et poids à mesurer (ADR).
 3. 🟡 **Exporter annoté** (fait : fond en image 144 dpi + annotations vectorielles, `pdf_annote_puis_exporte` ; reste le PDF d'origine en vectoriel) : PDF (fond en image 200 dpi + annotations vectorielles) et PNG par page. Ensuite seulement :
    garder le PDF d'origine en vectoriel (page d'origine en XObject sous les annotations), plus net et plus léger.
-4. ⬜ **Ouvrir depuis Android** : « Ouvrir avec » / « Partager vers Fanoratana » pour un PDF ou une image (intents VIEW/SEND, déjà
+4. ✅ **Ouvrir depuis Android** (essayé sur la Pad 7 `8df629a` le 2026-11-14 : intention VIEW → nouvelle leçon ; sans leçon ouverte,
+   chapitre « Documents › À annoter » ; Linux : glisser-déposer et `fanoratana fichier.pdf`, non essayés à la main) : « Ouvrir avec » / « Partager vers Fanoratana » pour un PDF ou une image (intents VIEW/SEND, déjà
    gérés par la passerelle de mahay) ; sur Linux, glisser-déposer et `fanoratana fichier.pdf`.
 5. ⬜ **Confort** : gros PDF rendus page par page à la demande, miniatures des pages, aller à une page ; gomme qui ne touche jamais le fond.
 6. ⬜ **Plus tard** : recherche dans le texte du PDF, copier une zone du PDF dans un cours, PDF protégés (refus clair).

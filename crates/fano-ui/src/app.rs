@@ -157,6 +157,8 @@ pub struct Fanoratana {
     /// Le prochain fichier choisi est un document à annoter (sinon une image à insérer).
     pub(crate) document_demande: bool,
     pub(crate) import: Option<crate::annoter::Partage>,
+    /// Documents reçus d'ailleurs (autre app, glisser-déposer), à annoter l'un après l'autre.
+    pub(crate) documents_recus: Vec<(String, Vec<u8>)>,
     /// Dernière recherche de mise à jour tentée (secondes), réussie ou non.
     pub(crate) maj_tentee: u64,
     pub(crate) largeur_vue: f32,
@@ -254,6 +256,7 @@ impl Fanoratana {
             maj_lancee: false,
             document_demande: false,
             import: None,
+            documents_recus: Vec::new(),
             maj_tentee: 0,
             largeur_vue: 0.0,
             mode_lecture: ModeLecture::Auto,
@@ -437,7 +440,7 @@ impl Fanoratana {
                 self.inserer_image(&nom, &octets);
             }
         }
-        self.suivre_import();
+        self.suivre_import(ctx);
         if !self.lectures.is_empty() {
             ctx.request_repaint_after(Duration::from_millis(100));
         }

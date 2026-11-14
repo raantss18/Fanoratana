@@ -64,7 +64,8 @@ textes! {
     SupprimerPage => "Supprimer cette page", "Delete this page";
     InsererImage => "Insérer une image", "Insert an image";
     AnnoterDocument => "Annoter un PDF ou une image", "Annotate a PDF or an image";
-    AnnoterSansChapitre => "Ouvre d'abord une leçon : le document annoté se range dans son chapitre.", "Open a lesson first: the annotated document goes into its chapter.";
+    NiveauDocuments => "Documents", "Documents";
+    ChapitreAAnnoter => "À annoter", "To annotate";
     DocumentPrepare => "Préparation du document…", "Preparing the document…";
     DocumentPret => "Écris par-dessus le document : il ne s'efface pas.", "Write over the document: it never gets erased.";
     ExporterPdf => "Exporter en PDF", "Export as PDF";
