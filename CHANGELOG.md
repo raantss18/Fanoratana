@@ -2,11 +2,21 @@
 
 ## [Non publié]
 
+## [0.0.5] — 2026-11-15
+
 - Plus fluide : la mise en page des textes, formules, tableaux et repères n'est plus refaite à chaque image, et ce qui est hors de l'écran n'est plus dessiné.
-
 - Plus solide : un fichier de leçon abîmé ne fait plus planter l'app, un enregistrement qui échoue est signalé et la leçon reste ouverte, une image ou un PDF démesuré est refusé ou réduit (`docs/securite.md`).
-
 - « Ouvrir avec Fanoratana » et « Partager vers Fanoratana » sur Android pour un PDF ou une image ; sur Linux, glisser le fichier sur la fenêtre ou lancer `fanoratana fichier.pdf`.
+
+### Message fr
+Ouvre un PDF ou une image depuis une autre app (« Ouvrir avec » ou « Partager vers Fanoratana ») pour l'annoter.
+L'app est plus fluide et plus solide : un fichier abîmé ne la fait plus planter, et un enregistrement qui échoue
+est signalé sans rien perdre.
+
+### Message en
+Open a PDF or an image from another app ("Open with" or "Share to Fanoratana") to annotate it.
+The app is smoother and sturdier: a damaged file no longer crashes it, and a failed save is reported
+without losing anything.
 
 ## [0.0.4] — 2026-11-10
 
