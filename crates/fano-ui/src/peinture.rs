@@ -49,6 +49,45 @@ fn famille(p: Police) -> FontFamily {
 #[derive(Default)]
 pub struct Images {
     cache: HashMap<String, Option<TextureHandle>>,
+    /// La mise en page des éléments (textes, formules, tableaux, repères), gardée d'une image à l'autre : la
+    /// refaire à chaque image coûtait la moitié du dessin d'une page pleine. Clé : l'empreinte du contenu, donc
+    /// un élément modifié est remis en page, et rien d'autre.
+    scenes: HashMap<u64, (u64, std::rc::Rc<Vec<fano_render::Prim>>)>,
+}
+
+/// L'empreinte d'un élément : son contenu sérialisé, haché au fil de l'eau (sans allouer).
+fn empreinte(el: &Element) -> u64 {
+    use std::hash::Hasher;
+    struct Hache(std::collections::hash_map::DefaultHasher);
+    impl std::io::Write for Hache {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0.write(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut h = Hache(std::collections::hash_map::DefaultHasher::new());
+    let _ = serde_json::to_writer(&mut h, el);
+    h.0.finish()
+}
+
+impl Images {
+    /// Les primitives d'un élément, mises en page une seule fois tant qu'il ne change pas.
+    pub fn scene(&mut self, el: &Element, passe: u64) -> std::rc::Rc<Vec<fano_render::Prim>> {
+        let cle = empreinte(el);
+        // De temps en temps, on oublie ce qui n'a plus été dessiné depuis longtemps (leçon fermée, texte corrigé).
+        if self.scenes.len() > 4000 {
+            self.scenes.retain(|_, (vu, _)| passe.saturating_sub(*vu) < 600);
+        }
+        let e = self
+            .scenes
+            .entry(cle)
+            .or_insert_with(|| (passe, std::rc::Rc::new(fano_render::scene::element(el))));
+        e.0 = passe;
+        e.1.clone()
+    }
 }
 
 impl Images {
@@ -239,11 +278,19 @@ pub fn prim(p: &Painter, r: &Repere, pr: &Prim, images: &mut Images, coffre: &Pa
 
 /// Un élément de page.
 pub fn element(p: &Painter, r: &Repere, el: &Element, images: &mut Images, coffre: &Path) {
+    // Hors de l'écran : rien à dessiner. (Pas pour les textes : leur rectangle n'est qu'une estimation.)
+    if !matches!(el, Element::Texte(_)) {
+        let boite = r.rect(el.bbox()).expand(8.0 * r.zoom.max(1.0));
+        if !p.clip_rect().intersects(boite) {
+            return;
+        }
+    }
     match el {
         Element::Encre(t) => encre(p, r, t),
         e => {
-            for pr in fano_render::scene::element(e) {
-                prim(p, r, &pr, images, coffre);
+            let prims = images.scene(e, p.ctx().cumulative_pass_nr());
+            for pr in prims.iter() {
+                prim(p, r, pr, images, coffre);
             }
         }
     }
@@ -298,6 +345,33 @@ mod tests_images {
         assert!(
             img.pixels.iter().all(|p| p.a() == 0),
             "rien du fichier n'est dessiné"
+        );
+    }
+
+    /// La mise en page est gardée tant que l'élément ne change pas, et refaite dès qu'il change.
+    #[test]
+    fn la_mise_en_page_est_gardee_puis_refaite() {
+        let mut images = Images::default();
+        let mut t = fano_core::Texte {
+            pos: Point::new(10.0, 10.0),
+            contenu: "Soit $f(x)=\\frac{1}{2}x$".into(),
+            taille: 20.0,
+            ..Default::default()
+        };
+        let a = images.scene(&Element::Texte(t.clone()), 1);
+        let b = images.scene(&Element::Texte(t.clone()), 2);
+        assert!(std::rc::Rc::ptr_eq(&a, &b), "même contenu : même mise en page");
+        t.contenu.push_str(" et $g$");
+        let c = images.scene(&Element::Texte(t.clone()), 3);
+        assert!(
+            !std::rc::Rc::ptr_eq(&a, &c) && c.len() > a.len(),
+            "contenu changé : refaite"
+        );
+        t.pos = Point::new(50.0, 10.0);
+        let d = images.scene(&Element::Texte(t), 4);
+        assert!(
+            !std::rc::Rc::ptr_eq(&c, &d),
+            "déplacé : refaite à sa nouvelle place"
         );
     }
 

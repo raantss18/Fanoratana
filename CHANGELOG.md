@@ -2,6 +2,8 @@
 
 ## [Non publié]
 
+- Plus fluide : la mise en page des textes, formules, tableaux et repères n'est plus refaite à chaque image, et ce qui est hors de l'écran n'est plus dessiné.
+
 - Plus solide : un fichier de leçon abîmé ne fait plus planter l'app, un enregistrement qui échoue est signalé et la leçon reste ouverte, une image ou un PDF démesuré est refusé ou réduit (`docs/securite.md`).
 
 - « Ouvrir avec Fanoratana » et « Partager vers Fanoratana » sur Android pour un PDF ou une image ; sur Linux, glisser le fichier sur la fenêtre ou lancer `fanoratana fichier.pdf`.
