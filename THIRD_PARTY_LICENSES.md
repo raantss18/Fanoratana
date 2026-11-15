@@ -11,6 +11,7 @@
 | Liste de mots français FrequencyWords 2018 (Hermit Dave) | données CC BY-SA 4.0 (code MIT) | correction des mots incertains (`assets/lexique/fr.txt`, filtrée) | https://github.com/hermitdave/FrequencyWords — d'après OpenSubtitles2018 (OPUS) |
 | Google ML Kit Digital Ink Recognition 19.0.0 (Android seulement) | conditions de ML Kit / API Google — bibliothèque fermée, liée sous l'exception `LICENSE-EXCEPTION-MLKIT.md` | lecture de l'écriture fr/en/mg ; modèles téléchargés depuis Google ; statistiques d'utilisation envoyées à Google | https://developers.google.com/ml-kit/terms |
 | mahay-android, FanoActivity, ApkInstaller | MIT ou Apache-2.0 | passerelle Android | https://github.com/raantss18/mahay (`libs/core/crates/android`, `android/shell`) |
+| « Sidewalk Shade », Kevin MacLeod (musique de la vidéo de démonstration, pas dans l'app) | CC BY 4.0 | `site/video/demo.*.mp4` ; crédit dans la vidéo et sur le site | https://incompetech.com — https://creativecommons.org/licenses/by/4.0/ |
 | tract | MIT ou Apache-2.0 | exécution du modèle | https://github.com/sonos/tract |
 | hayro 0.7 (et hayro-syntax, -interpret, -jbig2, -jpeg2000, -ccitt, -cmap, -postscript), vello_cpu | MIT ou Apache-2.0 ; brotli BSD-3/MIT ; yoke, zerofrom Unicode-3.0 | pages de PDF à annoter rendues en images (ADR 0015) | https://github.com/LaurenzV/hayro |
 | egui, eframe, epaint | MIT ou Apache-2.0 | interface | https://github.com/emilk/egui |

@@ -157,8 +157,9 @@ Ordre de priorité (chaque étape est utilisable seule) :
 
 - ✅ Site de présentation fr/en : https://raantss18.github.io/Fanoratana/ (`site/`, `tool/build_site.py`, flux `site.yml`) ; reconstruit à
   chaque version publiée et une fois par jour ; images refaites par `tool/site_captures.sh` quand l'interface change.
-- ⬜ Vidéo de démonstration de 2 min avec Fikajiana (musique jazzy libre) ; elle s'affiche sur le site dès que
-  `site/video/demo.mp4` existe.
+- ✅ Vidéo de démonstration de 2 min avec Fikajiana, en français et en anglais (`tool/video_demo.py`, `site/video/LISEZMOI.md`) :
+  traits rejoués « au fil » (`tool/essais/fil.py`) sur la Pad 7 `8df629a`, vraie lecture de l'app ; musique « Sidewalk Shade »
+  de Kevin MacLeod (CC BY 4.0). Reste : la refaire avec la vraie écriture d'Antsa au stylet si elle le veut.
 
 - ⬜ Paquets Linux (AppImage, .deb) ; icône et entrée de menu installées.
 - ⬜ Accessibilité : lecteur d'écran (TalkBack) sur le rail et le coffre ; vérifier les contrastes.

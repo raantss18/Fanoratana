@@ -6,7 +6,7 @@
 `releases.json` est la réponse de l'API GitHub (`repos/<dépôt>/releases`). Le numéro, la date, les tailles, les
 empreintes SHA-256, les liens de téléchargement et le message de la version viennent de la dernière version publiée
 qui a une APK : le site suit l'app sans qu'on y touche. Sans version publiée, la page renvoie vers GitHub.
-Une vidéo `site/video/demo.mp4` (et `demo.<langue>.vtt`) est montrée si elle existe.
+La vidéo `site/video/demo.<langue>.mp4` (montée par `tool/video_demo.py`) est montrée si elle existe.
 """
 import argparse
 import html
@@ -42,6 +42,8 @@ TEXTES = {
         "demo_titre": "En trois gestes",
         "demo_intro": "Pas de menus à apprendre : la feuille prend tout l'écran, et quatre boutons suffisent.",
         "video_titre": "La démo en vidéo",
+        "video_credit": "Deux minutes avec Fanoratana et Fikajiana. Musique : « Sidewalk Shade », Kevin MacLeod "
+        "(incompetech.com), licence <a href=\"https://creativecommons.org/licenses/by/4.0/\">CC BY 4.0</a>.",
         "alt_cours": "Une leçon d'histoire : titre souligné, définition encadrée, frise et formes nettes.",
         "etape1_titre": "Écris",
         "etape1": "Titres, phrases, schémas, flèches : écris comme sur du papier. Après une pause, tout est mis au "
@@ -121,6 +123,8 @@ TEXTES = {
         "demo_titre": "In three moves",
         "demo_intro": "No menus to learn: the sheet takes the whole screen, and four buttons are enough.",
         "video_titre": "The demo video",
+        "video_credit": "Two minutes with Fanoratana and Fikajiana. Music: “Sidewalk Shade”, Kevin MacLeod "
+        "(incompetech.com), licensed under <a href=\"https://creativecommons.org/licenses/by/4.0/\">CC BY 4.0</a>.",
         "alt_cours": "A history lesson: underlined title, boxed definition, timeline and clean shapes.",
         "etape1_titre": "Write",
         "etape1": "Titles, sentences, diagrams, arrows: write as you would on paper. After a pause, everything is "
@@ -251,13 +255,11 @@ def page(modele, langue, version, video):
             v[f"{cle}_sha"] = html.escape(empreinte) or "—"
     if video:
         racine = v["racine"]
-        piste = f'<track kind="captions" srclang="{langue}" src="{racine}video/demo.{langue}.vtt" default>'
-        if not (RACINE / "site" / "video" / f"demo.{langue}.vtt").exists():
-            piste = ""
         v["video"] = (
-            f'  <figure class="video"><video controls preload="metadata" playsinline poster="{racine}img/maths.png" '
-            f'aria-label="{html.escape(t["video_titre"], quote=True)}">'
-            f'<source src="{racine}video/demo.mp4" type="video/mp4">{piste}</video></figure>'
+            f'  <figure class="video"><video controls preload="metadata" playsinline '
+            f'poster="{racine}video/affiche.{langue}.jpg" aria-label="{html.escape(t["video_titre"], quote=True)}">'
+            f'<source src="{racine}video/demo.{langue}.mp4" type="video/mp4"></video>'
+            f'<figcaption>{t["video_credit"]}</figcaption></figure>'
         )
     t.update(v)
     sortie = re.sub(r"\{\{(\w+)\}\}", lambda m: str(t[m.group(1)]), modele)
@@ -275,17 +277,17 @@ def main():
     modele = (source / "modele.html").read_text(encoding="utf-8")
     if a.out.exists():
         shutil.rmtree(a.out)
-    shutil.copytree(source, a.out, ignore=shutil.ignore_patterns("modele.html"))
+    shutil.copytree(source, a.out, ignore=shutil.ignore_patterns("modele.html", "sources", "LISEZMOI.md"))
     # Les polices et l'icône viennent de l'app : une seule source.
     (a.out / "polices").mkdir(exist_ok=True)
     for police in ("Caveat.ttf", "Nunito.ttf", "OFL-Caveat.txt", "OFL-Nunito.txt"):
         shutil.copy(RACINE / "assets" / "polices" / police, a.out / "polices" / police)
     (a.out / "img").mkdir(exist_ok=True)
     shutil.copy(RACINE / "brand" / "icone.svg", a.out / "img" / "icone.svg")
-    video = (source / "video" / "demo.mp4").exists()
-    (a.out / "index.html").write_text(page(modele, "fr", version, video), encoding="utf-8")
+    video = lambda langue: (source / "video" / f"demo.{langue}.mp4").exists()
+    (a.out / "index.html").write_text(page(modele, "fr", version, video("fr")), encoding="utf-8")
     (a.out / "en").mkdir(exist_ok=True)
-    (a.out / "en" / "index.html").write_text(page(modele, "en", version, video), encoding="utf-8")
+    (a.out / "en" / "index.html").write_text(page(modele, "en", version, video("en")), encoding="utf-8")
     (a.out / ".nojekyll").write_text("", encoding="utf-8")
     print(f"site construit dans {a.out} — version {version[0]['tag_name'] if version else 'aucune'}")
 

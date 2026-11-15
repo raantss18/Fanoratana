@@ -14,4 +14,6 @@ fr = b.page(m, "fr", v, False); en = b.page(m, "en", v, False)
 assert fr.startswith("Version 1.2.3, publiée le 5 mars 2026.|Bonjour &lt;b&gt;le&lt;/b&gt; monde.|https://x/a.apk|30 Mo|abc|—|"), fr
 assert en.startswith("Version 1.2.3, released on March 5, 2026.|Hello world."), en
 assert "GitHub" in b.page(m, "fr", None, False)
+vid = b.page("{{video}}", "en", v, True)
+assert 'video/demo.en.mp4' in vid and 'affiche.en.jpg' in vid and "Kevin MacLeod" in vid and "CC BY 4.0" in vid, vid
 print("site ok")

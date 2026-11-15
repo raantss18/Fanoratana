@@ -89,6 +89,7 @@ p { margin: 0 0 1rem; }
 .etapes p { color: var(--gris); margin: 0; }
 
 .video { margin: 0 0 2.5rem; }
+.video figcaption { color: var(--gris); font-size: 0.95rem; margin-top: 0.6rem; }
 .video video { width: 100%; border: 3px solid var(--noir); border-radius: 22px; background: var(--noir); display: block; }
 
 /* La règle des $ : ce qu'on écrit, ce qu'on obtient. */
