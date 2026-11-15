@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fanoratana — {{accroche_courte}}</title>
+<meta name="description" content="{{description}}">
+<meta property="og:title" content="Fanoratana">
+<meta property="og:description" content="{{description}}">
+<meta property="og:image" content="{{site}}img/maths.png">
+<link rel="icon" href="{{racine}}img/icone.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="{{autre_lang}}" href="{{autre_url}}">
+<link rel="stylesheet" href="{{racine}}style.css">
+</head>
+<body>
+<a class="evitement" href="#telecharger">{{aller_telecharger}}</a>
+
+<header class="entete">
+  <a class="marque" href="{{racine_langue}}">
+    <img src="{{racine}}img/icone.svg" alt="" width="44" height="44">
+    <span>Fanoratana</span>
+  </a>
+  <nav aria-label="{{nav}}">
+    <a href="#demo">{{nav_demo}}</a>
+    <a href="#maths">{{nav_maths}}</a>
+    <a href="#telecharger">{{nav_telecharger}}</a>
+    <a class="langue" href="{{autre_url}}" lang="{{autre_lang}}">{{autre_nom}}</a>
+  </nav>
+</header>
+
+<main>
+<section class="hero">
+  <div class="hero-texte">
+    <h1>{{titre}}</h1>
+    <p class="chapeau">{{chapeau}}</p>
+    <p class="actions">
+      <a class="bouton plein" href="#telecharger">{{bouton_telecharger}}</a>
+      <a class="bouton" href="#demo">{{bouton_demo}}</a>
+    </p>
+    <p class="discret">{{gratuit}}</p>
+  </div>
+  <figure class="tablette">
+    <img src="{{racine}}img/maths.png" alt="{{alt_maths}}" width="800" height="1100">
+  </figure>
+</section>
+
+<section id="demo" class="bande">
+  <h2>{{demo_titre}}</h2>
+  <p class="intro">{{demo_intro}}</p>
+{{video}}
+  <ol class="etapes">
+    <li>
+      <figure class="tablette petite"><img loading="lazy" src="{{racine}}img/cours.png" alt="{{alt_cours}}" width="800" height="1280"></figure>
+      <h3>{{etape1_titre}}</h3>
+      <p>{{etape1}}</p>
+    </li>
+    <li>
+      <figure class="tablette petite"><img loading="lazy" src="{{racine}}img/annoter.png" alt="{{alt_annoter}}" width="800" height="1280"></figure>
+      <h3>{{etape2_titre}}</h3>
+      <p>{{etape2}}</p>
+    </li>
+    <li>
+      <figure class="tablette petite"><img loading="lazy" src="{{racine}}img/ranger.png" alt="{{alt_ranger}}" width="1280" height="800"></figure>
+      <h3>{{etape3_titre}}</h3>
+      <p>{{etape3}}</p>
+    </li>
+  </ol>
+</section>
+
+<section id="maths" class="bande">
+  <h2>{{maths_titre}}</h2>
+  <p class="intro">{{maths_intro}}</p>
+  <div class="regle" role="img" aria-label="{{regle_alt}}">
+    <span class="manuscrit">$ f(x) = mx + p $</span>
+    <span class="fleche" aria-hidden="true">→</span>
+    <span class="propre"><i>f</i>(<i>x</i>) = <i>mx</i> + <i>p</i></span>
+  </div>
+  <ul class="liste">
+    <li>{{maths1}}</li>
+    <li>{{maths2}}</li>
+    <li>{{maths3}}</li>
+  </ul>
+  <p class="duo">{{fikajiana}}</p>
+</section>
+
+<section class="bande">
+  <h2>{{plus_titre}}</h2>
+  <ul class="grille">
+    <li><h3>{{plus1_titre}}</h3><p>{{plus1}}</p></li>
+    <li><h3>{{plus2_titre}}</h3><p>{{plus2}}</p></li>
+    <li><h3>{{plus3_titre}}</h3><p>{{plus3}}</p></li>
+    <li><h3>{{plus4_titre}}</h3><p>{{plus4}}</p></li>
+    <li><h3>{{plus5_titre}}</h3><p>{{plus5}}</p></li>
+    <li><h3>{{plus6_titre}}</h3><p>{{plus6}}</p></li>
+  </ul>
+</section>
+
+<section id="telecharger" class="bande telecharger">
+  <h2>{{tel_titre}}</h2>
+  <p class="intro">{{tel_version}}</p>
+  <p class="nouveau">{{notes}}</p>
+  <div class="deux">
+    <div class="carte">
+      <h3>{{tel_android}}</h3>
+      <a class="bouton plein" href="{{apk_url}}">{{tel_apk}}</a>
+      <p class="discret">{{apk_taille}}</p>
+      <ol>
+        <li>{{android1}}</li>
+        <li>{{android2}}</li>
+        <li>{{android3}}</li>
+      </ol>
+    </div>
+    <div class="carte">
+      <h3>{{tel_linux}}</h3>
+      <a class="bouton plein" href="{{linux_url}}">{{tel_binaire}}</a>
+      <p class="discret">{{linux_taille}}</p>
+      <ol>
+        <li>{{linux1}}</li>
+        <li>{{linux2}}</li>
+        <li>{{linux3}}</li>
+      </ol>
+    </div>
+  </div>
+  <details>
+    <summary>{{verifier}}</summary>
+    <p>{{verifier_texte}}</p>
+    <dl class="empreintes">
+      <dt>fanoratana-arm64-v8a.apk</dt><dd><code>{{apk_sha}}</code></dd>
+      <dt>fanoratana-linux-x86_64</dt><dd><code>{{linux_sha}}</code></dd>
+    </dl>
+  </details>
+  <p class="discret"><a href="{{versions_url}}">{{toutes_versions}}</a></p>
+</section>
+</main>
+
+<footer class="pied">
+  <p>{{pied_licence}}</p>
+  <p>{{pied_autrice}} · <a href="https://github.com/raantss18/Fanoratana">{{pied_code}}</a> · <a href="https://github.com/raantss18/Fanoratana/issues">{{pied_probleme}}</a></p>
+</footer>
+</body>
+</html>

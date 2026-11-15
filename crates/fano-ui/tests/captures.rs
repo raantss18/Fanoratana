@@ -390,3 +390,72 @@ fn document_annote() {
         |_| {},
     );
 }
+
+/// Un cours de maths au propre : la démonstration du site (`tool/site_captures.sh`).
+fn preparer_maths(dir: &std::path::Path) {
+    let coffre = Coffre::ouvrir(dir.join("Cours")).unwrap();
+    let n = coffre.creer_niveau("Seconde").unwrap();
+    let c = coffre.creer_chapitre(&n, "Fonctions").unwrap();
+    let chemin = coffre
+        .creer_lecon(&c, "Les fonctions affines", Format::A4)
+        .unwrap();
+    let mut l = coffre.lire_lecon(&chemin).unwrap();
+    let e = &mut l.pages[0].elements;
+    e.push(texte(
+        72.0,
+        40.0,
+        "Les fonctions affines",
+        24.0,
+        1,
+        Encadre::Aucun,
+    ));
+    e.push(texte(
+        72.0,
+        134.0,
+        "Soit $f$ la fonction définie sur $\\mathbb{R}$ par $f(x)=mx+p$.",
+        20.0,
+        0,
+        Encadre::Definition,
+    ));
+    e.push(texte(
+        72.0,
+        226.0,
+        "Le nombre $m$ est le coefficient directeur : $m=\\frac{f(b)-f(a)}{b-a}$.",
+        20.0,
+        0,
+        Encadre::Aucun,
+    ));
+    e.push(texte(
+        72.0,
+        300.0,
+        "$\\lim_{x \\to +\\infty} \\frac{2x+1}{x} = 2$ et $\\sqrt{x^2+1} \\geq 1$.",
+        20.0,
+        0,
+        Encadre::ARetenir,
+    ));
+    let defs = vec![
+        "f(x)=2x+1".to_owned(),
+        "g(x)=-x+3".to_owned(),
+        "A=(1;3)".to_owned(),
+    ];
+    let (x0, x1, y0, y1) = fano_render::scene::bornes_auto(&defs);
+    e.push(Element::Graphe(Graphe {
+        rect: Rect::from_min_size(Point::new(72.0, 420.0), 430.0, 300.0),
+        definitions: defs,
+        xmin: x0,
+        xmax: x1,
+        ymin: y0,
+        ymax: y1,
+    }));
+    coffre.ecrire_lecon(&chemin, &l).unwrap();
+    std::fs::write(
+        dir.join("reglages.json"),
+        format!("{{\"derniere_lecon\": {:?}}}", chemin.to_string_lossy()),
+    )
+    .unwrap();
+}
+
+#[test]
+fn cours_de_maths() {
+    capture_avec("maths", egui::vec2(800.0, 1100.0), preparer_maths, |_| {});
+}

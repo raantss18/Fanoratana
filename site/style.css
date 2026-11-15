@@ -1,0 +1,134 @@
+/* Fanoratana — le site. Même identité que l'app (docs/design.md) : noir sur blanc, Caveat pour ce qui est
+   écrit, Nunito pour le reste, traits à bouts ronds. Pas de script : la page est complète sans. */
+@font-face { font-family: "Caveat"; src: url("polices/Caveat.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "Nunito"; src: url("polices/Nunito.ttf") format("truetype"); font-weight: 200 1000; font-display: swap; }
+
+:root {
+  --noir: #000;
+  --gris: #5c5c5c;
+  --filet: #d6d6d6;
+  --bureau: #f1f1f1;
+  --papier: #fff;
+  --ligne: #e8e8e8;
+  --large: 68rem;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  margin: 0;
+  background: var(--papier);
+  color: var(--noir);
+  font: 400 1.0625rem/1.6 "Nunito", system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+img { max-width: 100%; height: auto; display: block; }
+a { color: inherit; text-underline-offset: 0.2em; }
+a:focus-visible, summary:focus-visible { outline: 3px solid var(--noir); outline-offset: 3px; border-radius: 4px; }
+
+.evitement { position: absolute; left: -999rem; }
+.evitement:focus { left: 1rem; top: 1rem; background: var(--noir); color: var(--papier); padding: 0.6rem 1rem; z-index: 5; }
+
+h1, h2 { font-family: "Caveat", cursive; font-weight: 700; line-height: 1.05; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2.9rem, 7.5vw, 5.2rem); }
+h2 { font-size: clamp(2.2rem, 5vw, 3.2rem); }
+h3 { font-size: 1.125rem; font-weight: 800; margin: 0 0 0.3rem; }
+p { margin: 0 0 1rem; }
+
+/* En-tête */
+.entete {
+  max-width: var(--large); margin: 0 auto; padding: 1rem 1rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+}
+.marque { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; font: 700 2rem/1 "Caveat", cursive; }
+.entete nav { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+.entete nav a { padding: 0.65rem 0.8rem; text-decoration: none; border-radius: 999px; min-height: 48px; display: inline-flex; align-items: center; }
+.entete nav a:hover { background: var(--bureau); }
+.entete nav .langue { border: 1.5px solid var(--noir); }
+
+/* Première vue */
+.hero {
+  max-width: var(--large); margin: 0 auto; padding: 2rem 1rem 3.5rem;
+  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 3rem; align-items: center;
+}
+.chapeau { font-size: 1.25rem; color: var(--gris); margin: 1.2rem 0 1.6rem; max-width: 34rem; }
+.actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+.discret { color: var(--gris); font-size: 0.95rem; }
+
+.bouton {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0.7rem 1.5rem;
+  border: 2px solid var(--noir); border-radius: 999px; text-decoration: none; font-weight: 800; background: var(--papier);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.bouton.plein { background: var(--noir); color: var(--papier); }
+.bouton:hover { transform: translateY(-2px); box-shadow: 0 4px 0 var(--noir); }
+.bouton.plein:hover { box-shadow: 0 4px 0 var(--gris); }
+@media (prefers-reduced-motion: reduce) { .bouton { transition: none; } .bouton:hover { transform: none; } }
+
+/* Une tablette dessinée au trait, comme l'icône. */
+.tablette {
+  margin: 0; border: 3px solid var(--noir); border-radius: 26px; padding: 10px; background: var(--papier);
+  box-shadow: 10px 10px 0 var(--bureau);
+}
+.tablette img { border-radius: 14px; border: 1px solid var(--filet); width: 100%; }
+.hero .tablette { max-width: 25rem; justify-self: center; transform: rotate(1.5deg); }
+.tablette.petite { border-width: 2.5px; border-radius: 20px; padding: 7px; box-shadow: 6px 6px 0 var(--bureau); }
+.tablette.petite img { border-radius: 11px; aspect-ratio: 4 / 5; object-fit: cover; object-position: left top; }
+
+/* Sections */
+.bande { max-width: var(--large); margin: 0 auto; padding: 3.5rem 1rem; border-top: 1.5px solid var(--filet); }
+.intro { font-size: 1.2rem; color: var(--gris); max-width: 42rem; margin: 0.8rem 0 2rem; }
+
+.etapes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2rem; counter-reset: etape; }
+.etapes li { counter-increment: etape; }
+.etapes h3 { margin-top: 1.1rem; }
+.etapes h3::before { content: counter(etape) ". "; font-family: "Caveat", cursive; font-size: 1.7rem; }
+.etapes p { color: var(--gris); margin: 0; }
+
+.video { margin: 0 0 2.5rem; }
+.video video { width: 100%; border: 3px solid var(--noir); border-radius: 22px; background: var(--noir); display: block; }
+
+/* La règle des $ : ce qu'on écrit, ce qu'on obtient. */
+.regle {
+  display: flex; align-items: center; justify-content: center; gap: 1.5rem; flex-wrap: wrap;
+  padding: 2rem 1rem; margin: 0 0 2rem; border: 2px solid var(--noir); border-radius: 22px;
+  background: repeating-linear-gradient(var(--papier) 0 2.4rem, var(--ligne) 2.4rem calc(2.4rem + 1px));
+}
+.manuscrit { font: 700 clamp(2rem, 6vw, 3.2rem)/1 "Caveat", cursive; transform: rotate(-2deg); }
+.fleche { font-size: 2rem; }
+.propre { font: 400 clamp(1.7rem, 5vw, 2.6rem)/1 "Cambria Math", "STIX Two Math", "Latin Modern Math", Georgia, serif; }
+
+.liste { margin: 0 0 1.5rem; padding-left: 1.3rem; max-width: 46rem; }
+.liste li { margin-bottom: 0.5rem; }
+.duo { border-left: 4px solid var(--noir); padding: 0.4rem 0 0.4rem 1rem; max-width: 46rem; margin: 0; }
+
+.grille { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem 2.5rem; }
+.grille p { color: var(--gris); margin: 0; }
+
+/* Télécharger */
+.telecharger .nouveau { max-width: 46rem; }
+.deux { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; margin: 2rem 0; }
+.carte { border: 2px solid var(--noir); border-radius: 22px; padding: 1.5rem; }
+.carte .bouton { margin: 0.6rem 0 0.5rem; }
+.carte ol { margin: 0.8rem 0 0; padding-left: 1.3rem; color: var(--gris); }
+.carte li { margin-bottom: 0.3rem; }
+details { margin: 0 0 1rem; }
+summary { cursor: pointer; font-weight: 800; padding: 0.7rem 0; min-height: 48px; }
+.empreintes dt { font-weight: 800; margin-top: 0.6rem; }
+.empreintes dd { margin: 0; }
+code { font: 0.9rem/1.4 ui-monospace, "DejaVu Sans Mono", monospace; overflow-wrap: anywhere; background: var(--bureau); padding: 0.1rem 0.3rem; border-radius: 4px; }
+
+.pied { border-top: 1.5px solid var(--filet); padding: 2rem 1rem 3rem; text-align: center; color: var(--gris); font-size: 0.95rem; }
+.pied p { margin: 0 0 0.4rem; }
+
+@media (max-width: 52rem) {
+  .hero { grid-template-columns: 1fr; gap: 2rem; padding-top: 1rem; }
+  .hero .tablette { max-width: 20rem; transform: none; }
+  .etapes, .grille { grid-template-columns: 1fr; }
+  .etapes li { max-width: 24rem; }
+  .deux { grid-template-columns: 1fr; }
+  .bande { padding: 2.5rem 1rem; }
+}

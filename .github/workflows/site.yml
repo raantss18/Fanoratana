@@ -1,0 +1,66 @@
+name: Site
+
+# Publie le site de présentation (site/) sur GitHub Pages. Il est reconstruit à chaque modification du site et à chaque
+# version publiée : le numéro, la date, les tailles, les empreintes, les liens et le message viennent de la dernière
+# version qui a une APK. Une fois par jour aussi, au cas où un déclenchement se serait perdu : une version finit
+# toujours par se voir. Les images viennent de l'app elle-même (tool/site_captures.sh, rangées dans site/img/).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'tool/build_site.py'
+      - 'brand/icone.svg'
+      - 'assets/polices/**'
+      - '.github/workflows/site.yml'
+  release:
+    types: [published, edited, deleted]
+  schedule:
+    - cron: '41 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  # Une version publiée arrive sur une étiquette, et l'environnement github-pages n'accepte que main : on relance ce
+  # même flux sur main, sans élargir ce qui a le droit de publier le site.
+  relancer:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run site.yml --repo "${{ github.repository }}" --ref main
+
+  deploiement:
+    if: github.event_name != 'release'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Versions publiées
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/${{ github.repository }}/releases?per_page=30" > releases.json
+
+      - name: Construire le site
+        run: python3 tool/build_site.py --releases releases.json --out _site
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: _site
+      - id: pages
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
