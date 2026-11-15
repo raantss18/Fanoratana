@@ -42,6 +42,12 @@ fn titre_de(nom: &str) -> String {
 /// Prépare le document (PDF ou image) en pages.
 fn preparer(nom: &str, octets: &[u8], progres: impl Fn(usize, usize)) -> Result<Pret, String> {
     let titre = titre_de(nom);
+    if octets.len() > document::OCTETS_MAX {
+        return Err(format!(
+            "document de plus de {} Mo",
+            document::OCTETS_MAX / (1024 * 1024)
+        ));
+    }
     if document::est_pdf(octets) {
         let d = document::pdf(octets, progres)?;
         let base = fano_core::coffre::nom_sur(&titre);
@@ -136,11 +142,18 @@ impl Fanoratana {
         std::thread::spawn(move || {
             let e2 = etat.clone();
             let c2 = ctx.clone();
-            let r = preparer(&nom, &octets, move |fait, total| {
-                *e2.lock().unwrap() = Import::Pages(fait, total);
-                c2.request_repaint();
-            });
-            *etat.lock().unwrap() = Import::Pret(r);
+            // Un PDF abîmé peut faire paniquer le lecteur : l'import échoue alors proprement, au lieu de rester
+            // « en préparation » pour toujours et de bloquer les suivants.
+            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                preparer(&nom, &octets, move |fait, total| {
+                    if let Ok(mut e) = e2.lock() {
+                        *e = Import::Pages(fait, total);
+                    }
+                    c2.request_repaint();
+                })
+            }))
+            .unwrap_or_else(|_| Err("document illisible".into()));
+            *etat.lock().unwrap_or_else(|e| e.into_inner()) = Import::Pret(r);
             ctx.request_repaint();
         });
     }

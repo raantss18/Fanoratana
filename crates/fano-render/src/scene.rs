@@ -597,6 +597,22 @@ pub fn page(page: &fano_core::Page, format: Format) -> Vec<Prim> {
 mod tests {
     use super::*;
 
+    /// Relecture du 2026-11-15 : avec ces bornes la grille ne finissait jamais (x + pas == x en f32).
+    #[test]
+    fn un_repere_aux_bornes_folles_se_dessine_quand_meme() {
+        for (a, b) in [(16777216.0, 16777217.0), (1e8, 1e8), (-1e30, 1e30), (0.0, 1e-9)] {
+            let g = fano_core::Graphe {
+                rect: fano_core::Rect::from_min_size(Point::new(0.0, 0.0), 300.0, 200.0),
+                definitions: vec!["f(x)=x".into(), "(".repeat(50_000), "-".repeat(50_000)],
+                xmin: a,
+                xmax: b,
+                ymin: a,
+                ymax: b,
+            };
+            assert!(graphe(&g).len() < 5000, "bornes {a}..{b}");
+        }
+    }
+
     fn t(contenu: &str, largeur: f32) -> Texte {
         Texte {
             pos: Point::new(10.0, 10.0),
@@ -750,6 +766,9 @@ pub fn tableau(t: &fano_core::Tableau) -> Vec<Prim> {
     v
 }
 
+/// Traits de grille au plus par axe d'un repère (le pas en donne une dizaine).
+const GRILLE_MAX: usize = 60;
+
 /// Un repère façon GeoGebra : grille, axes gradués, courbes et points.
 pub fn graphe(g: &fano_core::Graphe) -> Vec<Prim> {
     use crate::expr::{Definition, definition, evaluer};
@@ -781,8 +800,14 @@ pub fn graphe(g: &fano_core::Graphe) -> Vec<Prim> {
     };
     let (px, py) = (pas(dx), pas(dy));
     let grille = Couleur([0, 0, 0, 0x18]);
-    let mut x = (g.xmin / px).ceil() * px;
-    while x <= g.xmax + 1e-4 {
+    // Un nombre de traits compté, jamais « tant que x avance » : avec de grandes bornes, `x + px == x` en f32 et la
+    // boucle ne finissait pas (relecture du 2026-11-15).
+    let x0 = (g.xmin / px).ceil() * px;
+    for i in 0..=GRILLE_MAX {
+        let x = x0 + i as f32 * px;
+        if !x.is_finite() || x > g.xmax + 1e-4 {
+            break;
+        }
         v.push(Prim::Trace {
             pts: vec![ecran(x as f64, g.ymin as f64), ecran(x as f64, g.ymax as f64)],
             epaisseur: 0.5,
@@ -797,10 +822,13 @@ pub fn graphe(g: &fano_core::Graphe) -> Vec<Prim> {
                 Couleur([0x5c, 0x5c, 0x5c, 0xff]),
             ));
         }
-        x += px;
     }
-    let mut y = (g.ymin / py).ceil() * py;
-    while y <= g.ymax + 1e-4 {
+    let y0 = (g.ymin / py).ceil() * py;
+    for i in 0..=GRILLE_MAX {
+        let y = y0 + i as f32 * py;
+        if !y.is_finite() || y > g.ymax + 1e-4 {
+            break;
+        }
         v.push(Prim::Trace {
             pts: vec![ecran(g.xmin as f64, y as f64), ecran(g.xmax as f64, y as f64)],
             epaisseur: 0.5,
@@ -815,7 +843,6 @@ pub fn graphe(g: &fano_core::Graphe) -> Vec<Prim> {
                 Couleur([0x5c, 0x5c, 0x5c, 0xff]),
             ));
         }
-        y += py;
     }
     // Axes avec flèches.
     if g.ymin <= 0.0 && g.ymax >= 0.0 {

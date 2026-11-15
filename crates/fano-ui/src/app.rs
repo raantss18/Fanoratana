@@ -298,7 +298,10 @@ impl Fanoratana {
     }
 
     pub(crate) fn ouvrir(&mut self, chemin: PathBuf) {
-        self.enregistrer();
+        // Une leçon qui n'a pas pu être écrite n'est jamais remplacée par une autre : elle serait perdue.
+        if !self.enregistrer() {
+            return;
+        }
         match self.coffre.lire_lecon(&chemin) {
             Ok(lecon) => {
                 let fil = chemin
@@ -334,13 +337,23 @@ impl Fanoratana {
     }
 
     /// Écrit la leçon si elle a changé.
-    pub(crate) fn enregistrer(&mut self) {
-        if let Some(o) = &mut self.ouverte {
-            if o.sale {
-                match self.coffre.ecrire_lecon(&o.chemin, &o.lecon) {
-                    Ok(()) => o.sale = false,
-                    Err(e) => log::error!("enregistrement : {e}"),
-                }
+    /// Rend faux si l'écriture a échoué (disque plein, coffre débranché) : la personne est prévenue, et la
+    /// leçon reste en mémoire pour un nouvel essai.
+    pub(crate) fn enregistrer(&mut self) -> bool {
+        let Some(o) = &mut self.ouverte else { return true };
+        if !o.sale {
+            return true;
+        }
+        match self.coffre.ecrire_lecon(&o.chemin, &o.lecon) {
+            Ok(()) => {
+                o.sale = false;
+                true
+            }
+            Err(e) => {
+                log::error!("enregistrement : {e}");
+                let m = format!("{} {e}", t(self.langue, T::EnregistrementImpossible));
+                self.dire(m);
+                false
             }
         }
     }
@@ -999,5 +1012,58 @@ impl Fanoratana {
             let j = (i as i64 + aller).clamp(0, n as i64 - 1) as usize;
             self.presentation = Some(j);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests_enregistrement {
+    use super::*;
+
+    struct Faux(PathBuf);
+    impl Plateforme for Faux {
+        fn dossier_donnees(&self) -> PathBuf {
+            self.0.clone()
+        }
+        fn demander_image(&mut self) {}
+        fn image_choisie(&mut self) -> Option<(String, Vec<u8>)> {
+            None
+        }
+        fn enregistrer(&mut self, _: &str, _: &str, _: Vec<u8>) -> Result<Option<String>, String> {
+            Ok(None)
+        }
+    }
+
+    /// Relecture du 2026-11-15 : un enregistrement raté n'était que journalisé, puis la leçon était remplacée.
+    #[test]
+    fn une_lecon_non_enregistree_n_est_jamais_remplacee() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut app = Fanoratana::new(
+            &egui::Context::default(),
+            Box::new(Faux(dir.path().to_path_buf())),
+        );
+        let premiere = app
+            .ouverte
+            .as_ref()
+            .expect("la leçon de bienvenue")
+            .chemin
+            .clone();
+        let chapitre = premiere.parent().unwrap().to_path_buf();
+        let autre = app
+            .coffre
+            .creer_lecon(&chapitre, "Autre", fano_core::Format::A4)
+            .unwrap();
+        // La leçon ouverte ne peut plus être écrite : son dossier a disparu (coffre débranché).
+        let o = app.ouverte.as_mut().unwrap();
+        o.chemin = dir.path().join("absent").join("perdue.fano");
+        o.lecon.titre = "Travail à ne pas perdre".into();
+        o.sale = true;
+        app.ouvrir(autre.clone());
+        let o = app.ouverte.as_ref().unwrap();
+        assert_eq!(o.lecon.titre, "Travail à ne pas perdre", "la leçon reste ouverte");
+        assert!(o.sale && app.message.is_some(), "et la personne est prévenue");
+        // Le disque revenu, on peut changer de leçon.
+        app.ouverte.as_mut().unwrap().chemin = premiere;
+        app.ouvrir(autre);
+        assert_eq!(app.ouverte.as_ref().unwrap().lecon.titre, "Autre");
     }
 }

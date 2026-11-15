@@ -183,7 +183,9 @@ pub fn telecharger(v: &Version, dossier: &Path, progres: impl Fn(f32)) -> Result
     std::fs::create_dir_all(dossier).map_err(|e| e.to_string())?;
     let mut rep = fichier_publie(Some(&v.version), &f.nom)?;
     let mut lecteur = rep.body_mut().with_config().limit(f.taille + 1024).reader();
-    let dest = dossier.join(&f.nom);
+    // Le nom vient de release.json (signé) ; on n'en garde quand même que le dernier segment.
+    let nom = Path::new(&f.nom).file_name().ok_or("nom de fichier invalide")?;
+    let dest = dossier.join(nom);
     let mut sortie = std::fs::File::create(&dest).map_err(|e| e.to_string())?;
     let mut h = Sha256::new();
     let mut buf = vec![0u8; 64 * 1024];

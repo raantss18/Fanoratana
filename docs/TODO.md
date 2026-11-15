@@ -4,6 +4,8 @@
 
 ## 0. Erreurs signalées (ne reviennent jamais)
 
+- ✅ Audit du 2026-11-15 (`docs/securite.md`) : quinze défauts de robustesse et de sécurité corrigés, chacun avec son test quand
+  c'est possible (image hors du coffre, grille sans fin, fichier abîmé, enregistrement raté, formule sans fond, PDF géant…).
 - ✅ 0.0.2 publiée mais jamais proposée dans l'app (2026-11-09) : une recherche faite avant la publication (ou sans réseau)
   bloquait la suivante un jour → recherche à chaque ouverture puis toutes les 6 h, seule une recherche réussie compte
   (`une_recherche_ratee_ne_bloque_pas_la_suivante`) ; GitHub répondait 504 sur `releases/download/…` → deux nouveaux essais

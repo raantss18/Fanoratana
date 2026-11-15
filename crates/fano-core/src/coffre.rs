@@ -172,11 +172,36 @@ fn lecons(dir: &Path) -> Vec<PathBuf> {
     )
 }
 
-/// Écrit `contenu` dans `chemin` sans jamais laisser un fichier à moitié écrit.
+/// Écrit `contenu` dans `chemin` sans jamais laisser un fichier à moitié écrit : le fichier temporaire est
+/// poussé sur le disque (`sync_all`) avant de prendre la place de l'ancien, pour qu'une coupure de courant
+/// ne laisse pas une leçon vide.
 pub fn ecrire_atomique(chemin: &Path, contenu: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
     let tmp = chemin.with_extension("tmp~");
-    fs::write(&tmp, contenu)?;
+    let mut f = fs::File::create(&tmp)?;
+    f.write_all(contenu)?;
+    f.sync_all()?;
+    drop(f);
     fs::rename(&tmp, chemin)
+}
+
+/// Le fichier d'une image d'une leçon (`medias/schema.png`), dans le coffre `racine`. Une leçon reçue d'ailleurs
+/// ne doit rien pouvoir lire hors du coffre : chemin relatif, sous `medias/`, sans `..` ; sinon `None`.
+pub fn chemin_media(racine: &Path, fichier: &str) -> Option<PathBuf> {
+    use std::path::Component;
+    let p = Path::new(fichier);
+    let mut parts = p.components();
+    if parts.next() != Some(Component::Normal(MEDIAS.as_ref())) {
+        return None;
+    }
+    let mut reste = 0;
+    for c in parts {
+        match c {
+            Component::Normal(_) => reste += 1,
+            _ => return None,
+        }
+    }
+    (reste >= 1).then(|| racine.join(p))
 }
 
 impl Coffre {
@@ -369,6 +394,29 @@ impl Coffre {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn une_image_ne_sort_pas_du_coffre() {
+        let r = Path::new("/coffre");
+        assert_eq!(
+            super::chemin_media(r, "medias/a.png"),
+            Some(PathBuf::from("/coffre/medias/a.png"))
+        );
+        assert_eq!(
+            super::chemin_media(r, "medias/sous/a.png"),
+            Some(PathBuf::from("/coffre/medias/sous/a.png"))
+        );
+        for mauvais in [
+            "/etc/passwd",
+            "../secret.png",
+            "medias/../../secret.png",
+            "autre/a.png",
+            "medias",
+            "",
+        ] {
+            assert_eq!(super::chemin_media(r, mauvais), None, "{mauvais}");
+        }
+    }
+
     use super::*;
 
     #[test]

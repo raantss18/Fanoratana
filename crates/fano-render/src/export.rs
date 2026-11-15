@@ -90,7 +90,8 @@ pub fn svg(prims: &[Prim], w: f32, h: f32, coffre: &Path) -> String {
                 );
             }
             Prim::Image { fichier, rect } => {
-                if let Ok(octets) = std::fs::read(coffre.join(fichier)) {
+                let lu = fano_core::coffre::chemin_media(coffre, fichier).and_then(|p| std::fs::read(p).ok());
+                if let Some(octets) = lu {
                     let b64 = base64::engine::general_purpose::STANDARD.encode(octets);
                     let _ = writeln!(
                         s,
@@ -115,6 +116,11 @@ fn options() -> usvg::Options<'static> {
     db.load_font_data(CAVEAT.to_vec());
     db.load_font_data(SYMBOLES.to_vec());
     db.set_cursive_family(crate::polices::FAMILLE_MANUSCRIT);
+    // Un SVG inséré dans une leçon ne fait lire aucun fichier du disque à l'export : seulement ses `data:`.
+    o.image_href_resolver = usvg::ImageHrefResolver {
+        resolve_data: usvg::ImageHrefResolver::default_data_resolver(),
+        resolve_string: Box::new(|_, _| None),
+    };
     o
 }
 

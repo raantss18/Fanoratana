@@ -22,6 +22,11 @@ pub struct Document {
 pub const PAGES_MAX: usize = 200;
 /// Points → pixels des pages rendues (2 = 144 dpi).
 const ECHELLE: f32 = 2.0;
+/// Côté d'une page au plus, en points : une page plus grande (affiche, plan, ou fichier fabriqué pour épuiser
+/// la mémoire) est réduite à cette taille.
+pub const COTE_MAX: f32 = 3000.0;
+/// Taille d'un document au plus, en octets.
+pub const OCTETS_MAX: usize = 200 * 1024 * 1024;
 
 /// Est-ce un PDF ? (signature `%PDF-` au début)
 pub fn est_pdf(octets: &[u8]) -> bool {
@@ -30,6 +35,9 @@ pub fn est_pdf(octets: &[u8]) -> bool {
 
 /// Rend toutes les pages d'un PDF ; `progres(fait, total)` après chaque page.
 pub fn pdf(octets: &[u8], progres: impl Fn(usize, usize)) -> Result<Document, String> {
+    if octets.len() > OCTETS_MAX {
+        return Err(format!("document de plus de {} Mo", OCTETS_MAX / (1024 * 1024)));
+    }
     let doc = hayro::hayro_syntax::Pdf::new(Arc::new(octets.to_vec()))
         .map_err(|e| format!("PDF illisible ({e:?})"))?;
     let pages = doc.pages();
@@ -40,8 +48,7 @@ pub fn pdf(octets: &[u8], progres: impl Fn(usize, usize)) -> Result<Document, St
     if n > PAGES_MAX {
         return Err(format!("PDF de {n} pages : au plus {PAGES_MAX}"));
     }
-    let (largeur, hauteur) = pages[0].render_dimensions();
-    let (largeur, hauteur) = (largeur.max(1.0), hauteur.max(1.0));
+    let (largeur, hauteur) = borner(pages[0].render_dimensions());
     let cache = hayro::RenderCache::new();
     let reglages = hayro::hayro_interpret::InterpreterSettings::default();
     let mut res = Vec::with_capacity(n);
@@ -70,6 +77,16 @@ pub fn pdf(octets: &[u8], progres: impl Fn(usize, usize)) -> Result<Document, St
         hauteur,
         pages: res,
     })
+}
+
+/// La taille d'une page, ramenée à [`COTE_MAX`] au plus sans changer sa proportion.
+fn borner((w, h): (f32, f32)) -> (f32, f32) {
+    let (w, h) = (
+        if w.is_finite() { w.max(1.0) } else { 595.0 },
+        if h.is_finite() { h.max(1.0) } else { 842.0 },
+    );
+    let k = (COTE_MAX / w.max(h)).min(1.0);
+    ((w * k).max(1.0), (h * k).max(1.0))
 }
 
 /// Une image (photo d'un exercice, scan) : une page, large de 595 pt (A4) si elle est en hauteur,
@@ -147,6 +164,15 @@ mod tests {
         let px = |x: u32, y: u32| p1.pixel(x, y).unwrap();
         assert!(px(200, 200).red() < 30, "carré noir");
         assert!(px(1000, 1500).red() > 220, "fond blanc");
+    }
+
+    /// Relecture du 2026-11-15 : une page géante demandait des gigaoctets.
+    #[test]
+    fn une_page_geante_est_reduite() {
+        assert_eq!(borner((595.0, 842.0)), (595.0, 842.0));
+        let (w, h) = borner((60_000.0, 30_000.0));
+        assert_eq!((w, h), (3000.0, 1500.0));
+        assert_eq!(borner((f32::NAN, f32::INFINITY)), (595.0, 842.0));
     }
 
     #[test]

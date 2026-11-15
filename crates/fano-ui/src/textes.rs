@@ -98,6 +98,7 @@ textes! {
                    "Formula: write between $ … $, e.g. $\\frac{a}{b}$, $x^2$, $\\sqrt{2}$, $\\alpha$";
     Exporte => "Exporté :", "Exported:";
     Erreur => "Impossible :", "Could not:";
+    EnregistrementImpossible => "La leçon n'a pas pu être enregistrée (elle reste ouverte) :", "The lesson could not be saved (it stays open):";
     Vide => "Choisis une leçon dans « Mes cours », ou crée-la.", "Pick a lesson in “My courses”, or create one.";
     Bienvenue => "Écris ici avec le doigt, le stylet ou la souris. Après une pause, l'écriture se met au propre. Touche un texte pour le corriger au clavier.",
                  "Write here with your finger, a stylus or the mouse. After a pause, your writing is tidied up. Tap a text to correct it with the keyboard.";

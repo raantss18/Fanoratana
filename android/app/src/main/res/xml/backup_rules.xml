@@ -6,4 +6,8 @@
     <exclude domain="file" path="updates/" />
     <exclude domain="file" path="update.json" />
     <exclude domain="file" path="cache/" />
+    <!-- Fanoratana : les APK téléchargées et les modèles (117 Mo) se retéléchargent ; sans cette exclusion ils
+         mangent le quota de sauvegarde, et les cours (fanoratana/Cours) ne seraient plus sauvegardés. -->
+    <exclude domain="file" path="fanoratana/mises-a-jour/" />
+    <exclude domain="file" path="fanoratana/modeles/" />
 </full-backup-content>

@@ -56,7 +56,7 @@ impl Images {
         self.cache
             .entry(fichier.to_owned())
             .or_insert_with(|| {
-                let octets = std::fs::read(coffre.join(fichier)).ok()?;
+                let octets = std::fs::read(fano_core::coffre::chemin_media(coffre, fichier)?).ok()?;
                 let img = decoder(&octets, fichier)?;
                 Some(ctx.load_texture(fichier, img, egui::TextureOptions::LINEAR))
             })
@@ -67,7 +67,7 @@ impl Images {
 /// Décode un PNG, un JPEG ou un SVG (rendu à 2× sa taille, au plus 2048 px).
 pub fn decoder(octets: &[u8], nom: &str) -> Option<egui::ColorImage> {
     if nom.to_lowercase().ends_with(".svg") {
-        let arbre = usvg::Tree::from_data(octets, &usvg::Options::default()).ok()?;
+        let arbre = usvg::Tree::from_data(octets, &options_svg()).ok()?;
         let s = arbre.size();
         let k = (2048.0 / s.width().max(s.height())).min(2.0);
         let (w, h) = ((s.width() * k).ceil() as u32, (s.height() * k).ceil() as u32);
@@ -78,7 +78,7 @@ pub fn decoder(octets: &[u8], nom: &str) -> Option<egui::ColorImage> {
             pix.data(),
         ));
     }
-    let img = image::load_from_memory(octets).ok()?.to_rgba8();
+    let img = lecteur_image(octets)?.decode().ok()?.to_rgba8();
     let img = if img.width().max(img.height()) > 2048 {
         image::DynamicImage::ImageRgba8(img)
             .thumbnail(2048, 2048)
@@ -95,11 +95,36 @@ pub fn decoder(octets: &[u8], nom: &str) -> Option<egui::ColorImage> {
 /// Taille naturelle d'une image (largeur, hauteur), pour l'insérer à la bonne proportion.
 pub fn taille_image(octets: &[u8], nom: &str) -> Option<(f32, f32)> {
     if nom.to_lowercase().ends_with(".svg") {
-        let a = usvg::Tree::from_data(octets, &usvg::Options::default()).ok()?;
+        let a = usvg::Tree::from_data(octets, &options_svg()).ok()?;
         return Some((a.size().width(), a.size().height()));
     }
-    let i = image::load_from_memory(octets).ok()?;
-    Some((i.width() as f32, i.height() as f32))
+    // Seulement l'en-tête : pas besoin de décoder toute l'image pour connaître sa taille.
+    let (w, h) = lecteur_image(octets)?.into_dimensions().ok()?;
+    Some((w as f32, h as f32))
+}
+
+/// Un lecteur d'image aux limites explicites : au plus 16 000 px de côté et 512 Mo à décoder, pour qu'une
+/// image fabriquée (« bombe de décompression ») soit refusée au lieu d'épuiser la mémoire.
+fn lecteur_image(octets: &[u8]) -> Option<image::ImageReader<std::io::Cursor<&[u8]>>> {
+    let mut l = image::ImageReader::new(std::io::Cursor::new(octets))
+        .with_guessed_format()
+        .ok()?;
+    let mut limites = image::Limits::default();
+    limites.max_image_width = Some(16_000);
+    limites.max_image_height = Some(16_000);
+    limites.max_alloc = Some(512 * 1024 * 1024);
+    l.limits(limites);
+    Some(l)
+}
+
+/// Un SVG inséré ne charge aucun fichier du disque : seules ses images intégrées (`data:`) sont lues.
+pub fn options_svg() -> usvg::Options<'static> {
+    let mut o = usvg::Options::default();
+    o.image_href_resolver = usvg::ImageHrefResolver {
+        resolve_data: usvg::ImageHrefResolver::default_data_resolver(),
+        resolve_string: Box::new(|_, _| None),
+    };
+    o
 }
 
 /// Un trait d'encre : segments et disques, en un seul maillage (rapide, sans triangulation).
@@ -250,5 +275,36 @@ pub fn page(
     }
     for e in page.elements.iter().filter(|e| !surligne(e)) {
         element(p, r, e, images, coffre);
+    }
+}
+
+#[cfg(test)]
+mod tests_images {
+    use super::*;
+
+    /// Relecture du 2026-11-15 : un SVG inséré pouvait faire lire un fichier du disque (`<image href="/…">`).
+    #[test]
+    fn un_svg_ne_lit_aucun_fichier_du_disque() {
+        let dir = tempfile::tempdir().unwrap();
+        let secret = dir.path().join("secret.png");
+        let mut rouge = tiny_skia::Pixmap::new(8, 8).unwrap();
+        rouge.fill(tiny_skia::Color::from_rgba8(255, 0, 0, 255));
+        std::fs::write(&secret, rouge.encode_png().unwrap()).unwrap();
+        let svg = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="8" height="8"><image width="8" height="8" xlink:href="{}"/></svg>"#,
+            secret.display()
+        );
+        let img = decoder(svg.as_bytes(), "piege.svg").unwrap();
+        assert!(
+            img.pixels.iter().all(|p| p.a() == 0),
+            "rien du fichier n'est dessiné"
+        );
+    }
+
+    #[test]
+    fn la_taille_se_lit_sans_decoder_et_le_reste_est_refuse() {
+        let png = tiny_skia::Pixmap::new(40, 30).unwrap().encode_png().unwrap();
+        assert_eq!(taille_image(&png, "a.png"), Some((40.0, 30.0)));
+        assert_eq!(taille_image(b"pas une image", "a.png"), None);
     }
 }

@@ -100,6 +100,32 @@ fn groupe(s: &str) -> Option<(&str, &str)> {
     None
 }
 
+/// Une expression ou une formule trop longue ou trop imbriquée pour être analysée sans risque.
+pub fn trop_profond(s: &str) -> bool {
+    if s.len() > 2000 {
+        return true;
+    }
+    let (mut niveau, mut max, mut suite) = (0i32, 0i32, 0u32);
+    for c in s.chars() {
+        match c {
+            '(' | '{' | '[' => {
+                niveau += 1;
+                max = max.max(niveau);
+            }
+            ')' | '}' | ']' => niveau -= 1,
+            _ => {}
+        }
+        // Signes, puissances et commandes qui s'enchaînent sans rien entre eux.
+        if matches!(c, '-' | '+' | '^' | '\\' | '_') {
+            suite += 1;
+            if suite > 200 {
+                return true;
+            }
+        }
+    }
+    max > 48
+}
+
 struct Lecteur<'a> {
     s: &'a [u8],
     i: usize,
@@ -217,6 +243,11 @@ pub fn expression(s: &str) -> Option<Expr> {
 
 /// Reconnaît une définition GeoGebra : fonction ou point.
 pub fn definition(s: &str) -> Option<Definition> {
+    // Les analyseurs descendent d'un cran à chaque parenthèse, signe ou puissance : une suite sans fin
+    // (« (((((… », « -----… ») ferait déborder la pile, ce qui tue l'app sans message.
+    if trop_profond(s) {
+        return None;
+    }
     let n = normaliser(s);
     let (gauche, droite) = n.split_once('=')?;
     // Point : A=(1;2), A=(1,2)

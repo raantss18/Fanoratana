@@ -617,9 +617,17 @@ public class FanoActivity extends GameActivity {
         ContentResolver cr = getContentResolver();
         try (InputStream in = cr.openInputStream(uri); OutputStream os = new FileOutputStream(out)) {
             if (in == null) return null;
-            copy(in, os);
+            // The activity is exported: another app can hand over a stream that never ends. Stop at
+            // MAX_INCOMING bytes and leave nothing behind.
+            if (!copyAtMost(in, os, MAX_INCOMING)) {
+                Log.w(TAG, "ignored a document larger than " + MAX_INCOMING + " bytes");
+                os.close();
+                out.delete();
+                return null;
+            }
         } catch (Exception e) {
             Log.w(TAG, "couldn't read " + uri, e);
+            out.delete();
             return null;
         }
         return new String[] {out.getPath(), name, writable ? uri.toString() : ""};
@@ -638,6 +646,22 @@ public class FanoActivity extends GameActivity {
         name = name.substring(name.lastIndexOf('/') + 1);
         if (name.equals(".") || name.equals("..") || name.isEmpty()) name = "document";
         return name;
+    }
+
+    /** The largest document accepted from another app or the picker (a long PDF is a few dozen MB). */
+    private static final long MAX_INCOMING = 200L * 1024 * 1024;
+
+    /** Copy at most max bytes; false if the source is longer. */
+    private static boolean copyAtMost(InputStream in, OutputStream out, long max) throws java.io.IOException {
+        byte[] buf = new byte[64 * 1024];
+        long total = 0;
+        int n;
+        while ((n = in.read(buf)) > 0) {
+            total += n;
+            if (total > max) return false;
+            out.write(buf, 0, n);
+        }
+        return true;
     }
 
     private static void copy(InputStream in, OutputStream out) throws java.io.IOException {

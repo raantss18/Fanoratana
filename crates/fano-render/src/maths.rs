@@ -683,12 +683,33 @@ fn tableau(
 
 /// Met en page une formule (le contenu entre `$…$`).
 pub fn mettre_en_page(src: &str, taille: f32) -> Boite {
+    // Trop imbriquée pour être analysée sans risque (pile) : écrite telle quelle.
+    if crate::expr::trop_profond(src) {
+        let court: String = src.chars().take(200).collect();
+        return texte(&court, taille);
+    }
     horizontal(&analyser(src), taille)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Relecture du 2026-11-15 : ces formules faisaient déborder la pile (arrêt de l'app sans message).
+    #[test]
+    fn une_formule_sans_fond_ne_fait_pas_tomber_l_app() {
+        for src in [
+            "{".repeat(100_000),
+            "\\frac{".repeat(5_000),
+            "\\sqrt".repeat(50_000),
+            "x^".repeat(50_000),
+        ] {
+            let _ = mettre_en_page(&src, 20.0);
+        }
+        // Une formule normale, même bien remplie, passe toujours.
+        let b = mettre_en_page("\\frac{\\sqrt{x^{2}+1}}{\\frac{1}{2}+\\frac{a}{b}}", 20.0);
+        assert!(b.largeur > 20.0);
+    }
 
     #[test]
     fn systeme_et_matrice() {

@@ -166,6 +166,30 @@ pub struct Tableau {
 }
 
 impl Tableau {
+    /// Autant de cases que de lignes × colonnes, des tailles finies et positives (fichier abîmé).
+    pub fn assainir(&mut self) {
+        let sain = |v: &mut Vec<f32>| {
+            v.truncate(200);
+            if v.is_empty() {
+                v.push(60.0);
+            }
+            for x in v.iter_mut() {
+                *x = if x.is_finite() { x.clamp(8.0, 5000.0) } else { 60.0 };
+            }
+        };
+        sain(&mut self.largeurs);
+        sain(&mut self.hauteurs);
+        self.taille = if self.taille.is_finite() {
+            self.taille.clamp(4.0, 200.0)
+        } else {
+            18.0
+        };
+        self.cellules.resize(self.hauteurs.len(), Vec::new());
+        for ligne in &mut self.cellules {
+            ligne.resize(self.largeurs.len(), String::new());
+        }
+    }
+
     pub fn nouveau(pos: Point, lignes: usize, colonnes: usize, largeur: f32) -> Tableau {
         let (l, c) = (lignes.max(1), colonnes.max(1));
         Tableau {
@@ -240,6 +264,25 @@ pub struct Graphe {
     pub xmax: f32,
     pub ymin: f32,
     pub ymax: f32,
+}
+
+impl Graphe {
+    /// Des bornes finies, dans l'ordre, ni démesurées ni collées (sinon la grille ne finit jamais).
+    pub fn assainir(&mut self) {
+        let sain = |min: &mut f32, max: &mut f32| {
+            let ok = min.is_finite()
+                && max.is_finite()
+                && min.abs() <= 1e6
+                && max.abs() <= 1e6
+                && *max - *min >= 1e-3;
+            if !ok {
+                (*min, *max) = (-5.0, 5.0);
+            }
+        };
+        sain(&mut self.xmin, &mut self.xmax);
+        sain(&mut self.ymin, &mut self.ymax);
+        self.definitions.truncate(40);
+    }
 }
 
 /// Les encadrés d'un cours, valables pour toutes les matières.
@@ -485,8 +528,71 @@ impl Lecon {
         }
     }
 
+    /// Lit une leçon et la rend sûre à afficher ([`Lecon::assainir`]). Une leçon écrite par une version plus
+    /// récente est refusée : la réécrire perdrait ce que cette version ne connaît pas.
     pub fn depuis_json(s: &str) -> Result<Lecon, serde_json::Error> {
-        serde_json::from_str(s)
+        let mut l: Lecon = serde_json::from_str(s)?;
+        if l.format_fichier > Self::FORMAT_FICHIER {
+            return Err(serde::de::Error::custom(format!(
+                "leçon écrite par une version plus récente de Fanoratana (format {})",
+                l.format_fichier
+            )));
+        }
+        l.assainir();
+        Ok(l)
+    }
+
+    /// Côté d'une page au plus, en points (≈ 1,76 m) : au-delà, le fond et l'export demanderaient des gigaoctets.
+    pub const COTE_MAX: u32 = 5000;
+
+    /// Un fichier abîmé ou fabriqué ne doit ni planter l'app ni la bloquer : au moins une page, des tailles
+    /// bornées, des nombres finis, des tableaux cohérents, des repères aux bornes saines.
+    pub fn assainir(&mut self) {
+        if let Format::Libre { largeur, hauteur } = &mut self.format {
+            *largeur = (*largeur).clamp(36, Self::COTE_MAX);
+            *hauteur = (*hauteur).clamp(36, Self::COTE_MAX);
+        }
+        if self.pages.is_empty() {
+            self.pages.push(Page::default());
+        }
+        let fini = |r: Rect| {
+            [r.min.x, r.min.y, r.max.x, r.max.y]
+                .iter()
+                .all(|v| v.is_finite() && v.abs() < 1e6)
+        };
+        for page in &mut self.pages {
+            for e in &mut page.elements {
+                match e {
+                    Element::Encre(t) => t
+                        .points
+                        .retain(|p| p.x.is_finite() && p.y.is_finite() && p.p.is_finite()),
+                    Element::Texte(t) => {
+                        t.taille = if t.taille.is_finite() {
+                            t.taille.clamp(4.0, 400.0)
+                        } else {
+                            20.0
+                        };
+                        if !t.largeur.is_finite() || t.largeur < 0.0 {
+                            t.largeur = 0.0;
+                        }
+                    }
+                    Element::Tableau(t) => t.assainir(),
+                    Element::Graphe(g) => g.assainir(),
+                    Element::Forme(_) | Element::Image(_) => {}
+                }
+            }
+            // Ce qui n'a plus de place finie sur la page ne peut être ni dessiné ni touché.
+            page.elements.retain(|e| match e {
+                Element::Encre(t) => !t.points.is_empty() && t.epaisseur.is_finite(),
+                Element::Texte(t) => t.pos.x.is_finite() && t.pos.y.is_finite(),
+                Element::Forme(f) => {
+                    f.epaisseur.is_finite() && f.points.iter().all(|p| p.x.is_finite() && p.y.is_finite())
+                }
+                Element::Image(i) => fini(i.rect),
+                Element::Tableau(t) => t.pos.x.is_finite() && t.pos.y.is_finite(),
+                Element::Graphe(g) => fini(g.rect),
+            });
+        }
     }
 
     pub fn vers_json(&self) -> String {
@@ -535,6 +641,43 @@ impl Lecon {
             }
         }
         md
+    }
+}
+
+#[cfg(test)]
+mod tests_fichier_abime {
+    use super::*;
+
+    /// Relevé par la relecture du 2026-11-15 : chacun de ces fichiers plantait ou bloquait l'app.
+    #[test]
+    fn un_fichier_abime_devient_une_lecon_sure() {
+        let json = r#"{"format_fichier":1,"titre":"x","format":{"Libre":{"largeur":4000000000,"hauteur":0}},"pages":[]}"#;
+        let l = Lecon::depuis_json(json).unwrap();
+        assert_eq!(l.pages.len(), 1, "au moins une page");
+        assert_eq!(l.format.taille(), (5000.0, 36.0), "page bornée");
+
+        let json = r#"{"format_fichier":1,"titre":"x","pages":[{"elements":[
+            {"type":"tableau","pos":{"x":0,"y":0},"largeurs":[50,50,50],"hauteurs":[20,20],"cellules":[["a"]],"couleur":[0,0,0,255],"taille":18},
+            {"type":"graphe","rect":{"min":{"x":0,"y":0},"max":{"x":100,"y":100}},"definitions":[],"xmin":16777216,"xmax":16777216,"ymin":1e30,"ymax":2e30},
+            {"type":"image","fichier":"medias/a.png","rect":{"min":{"x":0,"y":0},"max":{"x":1e30,"y":10}}}
+        ]}]}"#;
+        let l = Lecon::depuis_json(json).unwrap();
+        let e = &l.pages[0].elements;
+        assert_eq!(e.len(), 2, "l'image sans place finie est retirée");
+        let Element::Tableau(t) = &e[0] else { panic!() };
+        assert_eq!(
+            (t.cellules.len(), t.cellules[1].len()),
+            (2, 3),
+            "autant de cases que de lignes × colonnes"
+        );
+        let Element::Graphe(g) = &e[1] else { panic!() };
+        assert_eq!((g.xmin, g.xmax, g.ymin, g.ymax), (-5.0, 5.0, -5.0, 5.0));
+    }
+
+    #[test]
+    fn une_lecon_d_une_version_plus_recente_est_refusee() {
+        let json = r#"{"format_fichier":99,"titre":"x","pages":[]}"#;
+        assert!(Lecon::depuis_json(json).is_err());
     }
 }
 

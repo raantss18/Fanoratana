@@ -686,7 +686,7 @@ impl Fanoratana {
         let tenu = trait_.points.len() >= 2 && {
             let fin = trait_.points.last().unwrap();
             let avant = trait_.points[trait_.points.len() - 2];
-            duree - f64::from(fin.t) / 1000.0 >= 0.5 || (fin.t - avant.t) >= 500
+            duree - f64::from(fin.t) / 1000.0 >= 0.5 || fin.t.saturating_sub(avant.t) >= 500
         };
         if self.outil == Outil::Formes || tenu {
             match self.forme_de(page, &trait_, &pts) {
