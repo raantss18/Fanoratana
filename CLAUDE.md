@@ -36,6 +36,8 @@ crates/fano-android  passerelle Android reprise de mahay (FanoActivity, ApkInsta
 apps/fanoratana      Linux ; apps/fanoratana-android : cdylib de l'APK ; android/ : Gradle
 ```
 
+- **Site** : `site/` + `tool/build_site.py`, publié par `.github/workflows/site.yml` sur https://raantss18.github.io/Fanoratana/ ;
+  il suit la dernière version publiée tout seul ; `tool/site_captures.sh` refait ses images. `docs/securite.md` : audit.
 - **`docs/TODO.md`** : seule source d'avancement. `docs/design.md` : identité et écrans. `docs/RELEASING.md` : publier.
 - **Versions** (ADR 0009) : chaque chiffre de 0 à 9 (0.0.9 → 0.1.0, 0.9.9 → 1.0.0) ; `tool/version_suivante.py`. Nouveautés sous
   `## [Non publié]` de `CHANGELOG.md`, avec un message fr/en qui dit ce que la version permet de faire.

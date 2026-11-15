@@ -1,5 +1,7 @@
 <p align="center"><img src="brand/icone.svg" width="160" alt="Une main tient un stylo ; une ligne d'écriture sort de la pointe."></p>
 
+**Site et téléchargement : https://raantss18.github.io/Fanoratana/**
+
 <h1 align="center">Fanoratana</h1>
 
 <p align="center"><b>On écrit son cours à la main, il se met au propre.</b><br>

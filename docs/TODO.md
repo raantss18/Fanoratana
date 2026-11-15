@@ -155,6 +155,11 @@ Ordre de priorité (chaque étape est utilisable seule) :
 
 ## 6. Plateformes
 
+- ✅ Site de présentation fr/en : https://raantss18.github.io/Fanoratana/ (`site/`, `tool/build_site.py`, flux `site.yml`) ; reconstruit à
+  chaque version publiée et une fois par jour ; images refaites par `tool/site_captures.sh` quand l'interface change.
+- ⬜ Vidéo de démonstration de 2 min avec Fikajiana (musique jazzy libre) ; elle s'affiche sur le site dès que
+  `site/video/demo.mp4` existe.
+
 - ⬜ Paquets Linux (AppImage, .deb) ; icône et entrée de menu installées.
 - ⬜ Accessibilité : lecteur d'écran (TalkBack) sur le rail et le coffre ; vérifier les contrastes.
 - ⬜ Mode sombre de l'interface (la feuille reste blanche).
